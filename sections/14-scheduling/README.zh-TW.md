@@ -2,30 +2,30 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 讓 agent 的 turn 由時鐘啟動，而不只是由 user 輸入啟動。
+> 讓時間也能啟動 agent，不必每次都等使用者輸入。
 
-背景工作仍然需要有人或有東西來啟動它。很多 task 應該稍後才跑或重複跑：一份報告、一則提醒，或一個定期檢查狀態的 task。
+背景工作仍然需要觸發來源。許多 task 應該延後執行或定期重複，例如產生報告、發送提醒，或固定檢查某個狀態。
 
-排程就是先記下什麼時候要做什麼。時間一到（fire），就把一個 prompt 放進 queue。正常的 loop 會把那個 prompt 當成一個新的 turn 來處理。
+scheduling 的核心很簡單：先記下何時要做什麼；時間一到（fire），就把 prompt 放進 queue。原本的 loop 再把它當成新的 turn 處理。
 
 排程必須：
 
-1. 把 schedule 儲存在單一 turn 之外。
-2. 獨立於 loop 之外地監看時間。
-3. 當 schedule fire 時把一個 prompt 放進 queue。
-4. 選擇性地讓 schedule 跨重啟後仍存活。
+1. 把 schedule 保存到單一 turn 之外。
+2. 由獨立元件監看時間，不阻塞 loop。
+3. schedule fire 時，把對應 prompt 放進 queue。
+4. 視需求讓 schedule 在重啟後仍然存在。
 
-少了這一層，agent 就只能對 user 輸入做出反應。
+少了這一層，agent 只能被動回應 user 輸入，無法在指定時間主動開始工作。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/14-scheduling.png)
 
-把時鐘和 loop 分開。scheduler 監看時間。它不會直接呼叫 model。
+關鍵是把時鐘和 loop 分開。scheduler 只負責監看時間，不會直接呼叫 model。
 
-在 fire 的時刻，scheduler 只把一個 prompt 放進 queue。driver 會等到沒有 turn 正在跑的時候（也就是兩個 turn 之間）才把 queue 裡的 prompt 拿出來，交給處理 user 輸入的同一個 agent loop，當成新的一輪跑。
+時間到時，scheduler 只會把 prompt 放進 queue。driver 會等目前的 turn 結束，再取出 prompt，交給原本處理 user 輸入的 agent loop，當成新一輪執行。
 
 - 一個 schedule 就是資料：要跑的 prompt、一個 fire 時間，以及選擇性的重複間隔。scheduler 把每一筆存成一個 task。
 - 一次性（one-shot）的 schedule fire 一次後就把自己刪掉。
@@ -33,7 +33,7 @@
 - 一個 durable 的 schedule 能在重啟後存活，但在 host 關機時它不會 fire。
 - heartbeat 是一種週期性 schedule，它問的是一個問題。它醒來、看一眼來源，多數時候判斷沒什麼好講的。
 
-### New: scheduler 與 fire queue
+### 本章新增：scheduler 與 fire queue
 
 `tick` 檢查哪些 task 已經到了預定時間。fire 就是把一個 prompt 放進 queue：
 
@@ -55,7 +55,7 @@ def tick(self):                                       # src/scheduler.py; called
 - `_save` 把 durable task 持久化成 JSON。
 - 在相同路徑上建立一個新的 `Scheduler`，會重新載入 durable task 並接續 id。
 
-### New: 投遞答案
+### 本章新增：投遞答案
 
 排程觸發的 turn 跑起來時，螢幕前沒有使用者，跑完的答案不主動送出去就沒人看到。所以每個 task 可以指定一個 channel。
 channel 就存在 task 裡，是那筆排程資料的一個欄位：`create(..., channel="console")` 存進去，`tick` fire 時再把它和 prompt 一起放進 queue。
@@ -75,7 +75,7 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 - `channels` 把 channel 名稱對應到一個送信的 callable（這裡是 print；真正的 adapter 是第 19 章的事）。
   task 指定 channel；driver 擁有這張對照表。兩邊互不知道對方的細節。
-- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是給排程任務的約定：模型跑完發現沒有新東西值得通知使用者（例如巡檢一切正常），就用這個開頭。driver 手上仍有完整文字，要留檔照樣可以。
+- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是給排程任務的約定：模型跑完發現沒有新東西值得通知使用者（例如這次輪詢沒看到任何變化），就用這個開頭。driver 手上仍有完整文字，要留檔照樣可以。
 - 沒有 channel 表示答案留在本地，也就是加入投遞之前的行為。
 - `bool` 回傳值讓 driver 可以改走別條路（demo 會印出未投遞的答案），而不是無聲地丟掉答案。
 
@@ -91,7 +91,7 @@ heartbeat 跑完發現沒什麼好講的，就回一個 `[SILENT]`。照上面�
 heartbeat 和 cron 在這裡用的是同一組零件：一個 prompt、一個重複間隔、一個 channel。差別只在 prompt。
 cron 的 prompt 是下命令，heartbeat 的 prompt 是問問題。
 
-### 如何整合
+### 如何接進現有架構
 
 排程分成兩半。`tick` 在自己的 daemon thread 上跑（第 13 章的背景執行），它不碰 model，fire 時只把 prompt 放進 queue：
 
@@ -127,25 +127,25 @@ for task in sched.drain():                            # src/demo.py · between t
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何決定何時執行排程工作。
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 簡單又私密。durable 的 schedule 能在重啟後存活。 | 不需要託管服務，無人看管也能 fire。 | 提醒跟著 session 一起重放。錯過的幾次會併成一個 turn。 |
-| **Cons** | 只在 session 運行時才會 tick，remote trigger 還要託管服務。 | gateway 得一直跑，共享 job store 還要靠鎖。 | 只能固定間隔。session 關掉就什麼都不會 fire。 |
-| **Why** | 假設本地有 session 開著。 | gateway 是 server process，無人看管也能 fire。 | 提醒就是對話狀態，所以歸 session log 管。 |
-| **How: trigger** | Cron、sleep 和 remote trigger，由 ticker 定期檢查。 | gateway tick 上的 cron，跟著使用者的時區走。 | 延遲多久後、某個時間點，或固定間隔，最快五分鐘一次。 |
-| **How: durability** | session 狀態，或存成一個帶鎖的 JSON 檔。 | CLI 和 gateway 共享一個 JSON job store，認領是原子的。 | 寫進 session log 的事件。fork 保留歷史，但不帶走提醒。 |
-| **How: wakeup** | fire 出來的 prompt 進 queue，在 turn 之間執行。 | 到點的 job 平行跑，輸出投遞到聊天平台。 | 等 agent 完全閒下來，才排一個 turn。至少送達一次。 |
+| **優點** | 簡單又私密。durable 的 schedule 能在重啟後存活。 | 不需要託管服務，無人看管也能 fire。 | 提醒跟著 session 一起重放。錯過的幾次會併成一個 turn。 |
+| **限制** | 只在 session 運行時才會 tick，remote trigger 還要託管服務。 | 需要一個 gateway，還要用鎖擋掉重複 fire。 | 只能固定間隔。session 關掉就什麼都不會 fire。 |
+| **設計原因** | 假設本地有 session 開著。 | gateway 是 server process，無人看管也能 fire。 | 提醒就是對話狀態，所以歸 session log 管。 |
+| **做法：trigger** | Cron、sleep 和 remote trigger，由 ticker 定期檢查。 | gateway tick 上的 cron，跟著使用者的時區走。 | 延遲多久後、某個時間點，或固定間隔，最快五分鐘一次。 |
+| **做法：durability** | session 狀態，或存成一個帶鎖的 JSON 檔。 | 共享一個 JSON job store，認領是原子的。 | 寫進 session log 的事件。fork 保留歷史，但不帶走提醒。 |
+| **做法：wakeup** | fire 出來的 prompt 進 queue，在 turn 之間執行。 | 到點的 job 平行跑，輸出投遞到聊天平台。 | 等 agent 完全閒下來，才排一個 turn。至少送達一次。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **重複 fire（Double fire）：**一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
-- **許多 schedule 一起 fire：**把每個週期性 task 的時間錯開一點。錯開量從 task 本身算出來，每次都一樣。
+- **許多 schedule 一起 fire：**給週期性 task 加上決定性的 jitter，把觸發時間錯開。
 - **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
 - **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
 - **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。
@@ -154,7 +154,7 @@ for task in sched.drain():                            # src/demo.py · between t
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 把 13 帶了過來，並加上：
 
@@ -171,7 +171,7 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。

@@ -2,31 +2,29 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 別再想下一句 prompt 要寫什麼。去設計那個不需要你也能把 agent 跑起來的 loop。
+> 重點不再是下一句 prompt，而是如何設計一套能自行啟動、驗證與改進的 loop。
 
-前面每一章都是在一次 model 呼叫的周圍加上一個機制。這一章把它們組合起來。
+前面各章分別在 model call 周圍加入一項機制，本章則把這些元件組合成完整系統。
 
-Loop engineering 說的是工程重心的轉移。
-與其一個 turn 一個 turn 的下 prompt，不如打造外層系統：由它找出要做的工作、把 agent 跑起來、檢查輸出，再決定下一步。
-人從操作者變成設計者。
+Loop engineering 代表的是工程重心的轉移。與其由人逐個 turn 下 prompt，不如建立外層系統，讓它自己找出工作、啟動 agent、檢查輸出並決定下一步。人的角色也從逐步操作，轉為設計規則與邊界。
 
 外層 loop 必須：
 
-1. 由 trigger 啟動執行，而不是只靠 user（第 14 章）。
-2. 輸出要先通過檢查，才算完成。
-3. 靠 budget（預先設好的花費上限）停下來，而不是靠運氣。
-4. 把狀態存下來，讓下一次執行接著做，而不是從頭來過（第 9、12 章）。
-5. 就算沒人在看，也要回報發生了什麼（第 20 章）。
+1. 由 trigger 啟動，不只依賴 user 輸入（第 14 章）。
+2. 輸出通過檢查後，任務才算完成。
+3. 靠預先設定的 budget 停下來，而不是靠運氣。
+4. 保存狀態，讓下次執行能延續進度（第 9、12 章）。
+5. 即使沒有人即時監看，也要留下完整回報（第 20 章）。
 
-少了這一層，外層 loop 就是人本身：下 prompt、讀輸出、判斷、重試都靠手動。人一停下來，agent 也跟著停。
+少了這一層，人就得親自充當外層 loop：下 prompt、讀輸出、判斷結果並手動重試。人一離開，agent 也會跟著停止。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/21-loop-engineering.png)
 
-最簡單的說法：agent loop 外面再包三層 loop。一層包著一層，每一層回答一個不同的問題。
+最簡單的理解方式，是在 agent loop 外再加上三層 loop。每一層負責回答不同問題。
 
 1. **Agent loop**（第 1 章）：呼叫 tool 直到任務看起來完成。回答的是：這一步怎麼做完。
 2. **驗證 loop（verification loop）：**拿 rubric（評分準則）替輸出評分。沒過就帶著 feedback 重試，最多試到 budget 用完。回答的是：是不是真的完成了。
@@ -39,7 +37,7 @@ Loop engineering 說的是工程重心的轉移。
 沒過而且 budget 還有剩，就帶著 feedback 重試；過了就透過該 task 的 channel 投遞出去。
 這次執行做了什麼，會記錄成 trace 留在 telemetry（第 20 章）。改進 loop 之後就是讀這些紀錄，來決定 harness 哪裡該改。
 
-### New: 驗證 loop
+### 本章新增：驗證 loop
 
 這是前面章節唯一沒做過的 loop。內層 loop 是 model 自己說完成就停。有了驗證 loop，「完成」不再是 model 說了算，要通過檢查才算數：
 
@@ -89,9 +87,9 @@ Loop engineering 的幾個出處都用「敢讓它做多少事」來替 loop 分
 
 等級是一個權限決定（第 3 章）。只有在目前等級的輸出已經穩定到讓人覺得無聊時，才把 loop 升一級。
 
-### 如何整合
+### 如何接進現有架構
 
-這一章沒有加任何新的基本元件。它是前面各章的組合：
+本章沒有加任何新的基本元件。它是前面各章的組合：
 
 - trigger 是第 14 章的 schedule 和第 19 章的 channel。
 - worker 是第 1 章的 loop；maker 和 checker 的分工用第 6 章的 subagent。
@@ -109,7 +107,7 @@ checker = agent_checker(RUBRIC, model)             # a fresh grader agent, no to
 result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, budget=2)
 ```
 
-這一章新加的是紀律：說完成之前先評分、開始之前先設 budget、無論如何都要回報。
+本章新加的是紀律：說完成之前先評分、開始之前先設 budget、無論如何都要回報。
 
 ### 延伸閱讀
 
@@ -174,22 +172,22 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何組合自己的外層 loop。
 
 | | Claude Code | Hermes Agent | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- | --- |
-| **Pros** | verify 用程式編排，budget 是硬上限。 | 有 budget，改進也能回滾。 | 每趟 run 的帳單都有硬上限。 | 外層 loop 以 plugin 掛在公開的事件上。 |
-| **Cons** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半。 | 沒有東西檢查成果，只有輪數當預算。 |
-| **Why** | 把外層 loop 當成一段可編排的程式。 | 目標是讓改進閉合到 model。 | 一趟 run 就是一個評分任務。 | loop 本身就是 plugin，控制自然掛在它上面。 |
-| **How: verification** | verify 階段用程式編排：judge panel。 | maker 和 checker 分工，加離線測試。 | 沒有，SWE-bench 離線評分。 | 沒有內建，做完了沒由模型自己說。 |
-| **How: event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset。 | 沒有，runner 排的是任務，不是時間。 | 提醒從 log 重放，以一個 turn 的形式進來。 |
-| **How: improvement loop** | workflow 可斷點續跑，從 cache 重放。 | run 會變成訓練資料。 | 沒有，只有 budget。 | 沒有現成的，但接的地方都留好了。 |
+| **優點** | verify 用程式編排，budget 是硬上限。 | 有 budget，改進也能回滾。 | 每趟 run 的帳單都有硬上限。 | 外層 loop 以 plugin 掛在公開的事件上。 |
+| **限制** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半。 | 沒有東西檢查成果，只有輪數當預算。 |
+| **設計原因** | 把外層 loop 當成一段可編排的程式。 | 目標是讓改進閉合到 model。 | 一趟 run 就是一個評分任務。 | loop 本身就是 plugin，控制自然掛在它上面。 |
+| **做法：verification** | verify 階段用程式編排：judge panel。 | maker 和 checker 分工，加離線測試。 | 沒有，SWE-bench 離線評分。 | 沒有內建，做完了沒由模型自己說。 |
+| **做法：event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset。 | 沒有，runner 排的是任務，不是時間。 | 提醒從 log 重放，以一個 turn 的形式進來。 |
+| **做法：improvement loop** | workflow 可斷點續跑，從 cache 重放。 | run 會變成訓練資料。 | 沒有，只有 budget。 | 沒有現成的，但接的地方都留好了。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **沒有停止條件（No stop condition）：**沒有上限的重試 loop 會一直燒 token，直到有人看到帳單。緩解：由 harness 強制執行的迭代、token 和時間 budget。
 - **自己評自己（Self-grading）：**worker 給自己的輸出打分數，驗證 loop 等於什麼都沒驗。緩解：獨立的 checker agent，加上定在 loop 之外的 rubric。
@@ -213,7 +211,7 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 把 20 帶了過來，並加上：
 
@@ -230,7 +228,7 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
   `docs/subsystems/core.md`、`packages/workflow/tool-ralph/README.md`、`packages/schedule/schedule/README.md`、`docs/subsystems/goal.md`。
@@ -249,7 +247,7 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [ACE](https://arxiv.org/abs/2510.04618)：用穩定的 id 增量修改 context 單項，而不是整段 prompt 重寫。
 - [Lin et al.](https://arxiv.org/abs/2605.30621)：harness 更新和 harness 收益分開量，用換 model 的方式把兩者分辨開來。
 - [AHE](https://arxiv.org/abs/2604.25850) 與 [Self-Harness](https://arxiv.org/abs/2606.09498)：harness 自我修改時的變更契約與受限候選空間。
-- [Claude Code](https://code.claude.com/docs)：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依據 tool schema 與文件記載的行為描述，非 source backup。
+- [Claude Code](https://code.claude.com/docs)：`/loop`、`ScheduleWakeup`、`Workflow` schema。依據 tool schema 與文件記載的行為描述，非 source backup。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 與 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。

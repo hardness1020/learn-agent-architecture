@@ -2,31 +2,31 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 每一輪都從即時狀態組出 prompt。
+> 每一輪都根據當下狀態，重新產生真正需要的 system prompt。
 
-system prompt 是 agent 的常駐指令集。它描述身分、規則、工具、專案脈絡，以及啟用中的功能。
+system prompt 是 agent 的常駐指令集，會說明身分、規則、可用工具、專案 context，以及目前啟用的功能。
 
-在真實的 agent 裡，這不能只是一個寫死的字串。
+在實際的 agent 系統中，它不能只是一段寫死的文字。
 
-工具、記憶、輸出風格、MCP 伺服器和各種模式會因 session 而異。prompt 應該描述實際啟用中的內容。
+工具、memory、輸出風格、MCP server 和執行模式都可能隨 session 改變，prompt 必須反映當下真正啟用的內容。
 
 一個 prompt 組裝器解決三個問題：
 
-1. 新功能的文字有明確的落腳處。
-2. 沒啟用的功能文字可以被略過。
-3. 穩定的段落可以使用 prompt caching。
+1. 每項功能都有固定的位置加入自己的指令。
+2. 未啟用的功能不會出現在 prompt 中。
+3. 穩定不變的段落可以使用 prompt caching。
 
-沒有組裝，prompt 會變得過時、臃腫，或難以安全地修改。
+沒有明確的組裝機制，prompt 很快就會變得過時、臃腫，也難以安全修改。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/10-system-prompt-assembly.png)
 
-把 prompt 定義成一組具名的段落。有些段落是靜態的。有些會從即時狀態計算文字，在不適用時回傳 `None`。
+把 prompt 拆成一組具名段落。有些內容固定不變，有些會根據即時狀態產生；不適用的段落直接回傳 `None`。
 
-組裝很簡單：解析每個段落，丟掉 `None`，把其餘的接起來。
+組裝流程很單純：依序解析每個段落，略過 `None`，再把剩下的內容串起來。
 
 ```python
 sections = [
@@ -42,7 +42,7 @@ prompt = [s for s in resolve(sections) if s is not None]
 1. 依狀態納入段落，不要靠關鍵字猜測。
 2. 讓易變的內容遠離穩定的 prompt 前綴。
 
-### New: 段落與組裝
+### 本章新增：段落與組裝
 
 ```python
 @dataclass
@@ -89,9 +89,9 @@ client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
 
 Claude Code 也使用一個明確的動態邊界。當較小的動態尾段變動時，這能保護一大段靜態前綴。
 
-### 如何整合
+### 如何接進現有架構
 
-loop 在每次模型呼叫前組出 prompt：
+loop 會在每次模型呼叫前產生 prompt：
 
 ```python
 for _ in range(max_steps):                             # src/loop.py
@@ -109,7 +109,7 @@ for _ in range(max_steps):                             # src/loop.py
 
 上面那份清單寫死在一個檔案裡。要加段落就得改那個檔案，而檔案裡的先後順序就是 prompt 的順序。
 
-deepseek-harness 改成從註冊表組出來。每個 plugin 註冊一個有名字的段落，再給一個數字說明它該排在哪。
+deepseek-harness 則改由註冊表組裝 prompt。每個 plugin 註冊一個具名段落，再用數字決定排列位置。
 數字照慣例分成幾個區段：harness 身分最前面，接著是部署方的 persona，再來才是工具指引。
 組裝時照數字排序，所以 plugin 不必知道別人註冊了什麼，也能找到自己的位置。
 
@@ -161,22 +161,22 @@ prompt 層降低發生機率，執行層限制損害範圍。
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
-每一輪如何組出 prompt。
+每一輪如何產生 prompt。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 不會留著過時的指令，工具指引對得上啟用中的工具集。 | 只從 config render 一次，沒有東西要失效。 | 每一項 prompt 事實都有一個負責人，引用錯了會直接報錯。 |
-| **Cons** | 多了段落 registry、cache 失效規則和排序紀律。 | prompt 在 run 中途改不了。 | registry、scope 和排序區段，全都是要維護的機制。 |
-| **Why** | 工具、記憶和模式會因 session 而異。 | 假設工具集在 run 中途不會變。 | plugin 各自擁有自己的事實，所以 prompt 是組出來的，不是改字串。 |
-| **How: assembly point** | 一個 prompt 組裝器，每個段落各回傳一個字串。 | config 裡的 Jinja2 template，變數缺了會直接報錯。 | 一個 registry，加上每個 scope 都能調整的組裝事件。 |
-| **How: sections** | 靜態與動態段落，專案脈絡走 context 訊息。 | 兩份 template：system 與 instance。 | 有名字的段落排在數字區段裡，scope 可以用同名蓋掉。 |
-| **How: when built** | 每一輪從即時狀態組出，動態段落會被 memoize。 | 只在 run 開始時組一次。 | 每一步組一次。會變的事實改以快照附加。 |
+| **優點** | 不會留著過時的指令，工具指引對得上啟用中的工具集。 | 只從 config render 一次，沒有東西要失效。 | 每一項 prompt 事實都有一個負責人，引用錯了會直接報錯。 |
+| **限制** | 多了段落 registry、cache 失效規則和排序紀律。 | prompt 在 run 中途改不了。 | registry、scope 和排序區段，全都是要維護的機制。 |
+| **設計原因** | 工具、記憶和模式會因 session 而異。 | 假設工具集在 run 中途不會變。 | plugin 各自擁有自己的事實，所以 prompt 由多個段落組裝而成，不是直接修改字串。 |
+| **做法：assembly point** | 一個 prompt 組裝器，每個段落各回傳一個字串。 | config 裡的 Jinja2 template，變數缺了會直接報錯。 | 一個 registry，加上每個 scope 都能調整的組裝事件。 |
+| **做法：sections** | 靜態與動態段落，專案脈絡走 context 訊息。 | 兩份 template：system 與 instance。 | 有名字的段落排在數字區段裡，scope 可以用同名蓋掉。 |
+| **做法：when built** | 每一輪根據即時狀態產生，動態段落會被 memoize。 | 只在 run 開始時組一次。 | 每一步組一次。會變的事實改以快照附加。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **易變文字打壞 cache：**把會變動的內容放到後面，或放到 prompt 前綴之外。
 - **段落 cache 過時：**當 session 狀態改變時，清掉被記憶的段落。
@@ -189,13 +189,13 @@ prompt 層降低發生機率，執行層限制損害範圍。
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 09 並加入：
 
 - [`prompt.py`](src/prompt.py)：`Section`、`static` 和 `assemble`。
 - [`registry.py`](src/registry.py)：deepseek-harness 的對照：段落註冊時帶一個排序數字，scope 可以蓋掉同名段落，`{{variable}}` 嚴格 render。
-- [`loop.py`](src/loop.py)：每一輪重新組出 prompt。
+- [`loop.py`](src/loop.py)：每一輪重新產生 prompt。
 - [`demo.py`](src/demo.py)：加入頂層的 `cache_control`。
 - [`test.py`](src/test.py)：檢查段落會依狀態正確納入或略過；registry 的檢查涵蓋排序、同名覆蓋，以及變數對不上就報錯。
 
@@ -206,7 +206,7 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`constants/prompts.ts`、`constants/systemPromptSections.ts`、`utils/api.ts`、`QueryEngine.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`config/mini.yaml`、

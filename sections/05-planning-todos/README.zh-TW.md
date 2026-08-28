@@ -2,31 +2,31 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 在進行多步驟工作之前，先把計畫存起來。
+> 面對多步驟任務，先把計畫寫下來，再開始動手。
 
-大型任務需要一份看得見的計畫。如果模型只把計畫留在 prompt 裡，經過許多工具結果之後，它可能會失去頭緒。
+大型任務需要一份明確、可追蹤的計畫。如果計畫只藏在 prompt 裡，經過多輪工具呼叫後，模型很容易忘記原本的進度。
 
 規劃解決了兩個各自獨立的問題：
 
-1. agent 在工作時需要一份當前的檢查清單。
-2. agent 在理解任務之前不該編輯檔案。
+1. agent 工作時需要一份隨時可更新的檢查清單。
+2. agent 還沒理解任務前，不應該直接修改檔案。
 
-本章兩者都加上：一個 todo 工具和一個 plan mode。todo 工具負責存放檢查清單。plan mode 允許唯讀的探索，直到寫好的計畫獲得核准。
+本章會同時加入 todo 工具和 plan mode。todo 工具保存檢查清單；plan mode 則把 agent 限制在唯讀探索，直到計畫通過核准。
 
-沒有這一層，短任務仍然能運作。較長的任務則可能跳過步驟，或太早動手。
+短任務沒有這一層通常也能完成，但任務一長，agent 就容易漏掉步驟，或在資訊還不足時太早動手。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/05-planning-and-todos.png)
 
-這裡有兩個工具。兩者都是一般由模型呼叫的工具。兩者都不改動核心 loop。
+這裡加入兩個一般的模型工具，核心 loop 完全不需要修改。
 
-- **Todo list：** 模型會覆寫一份結構化的檢查清單。這個工具不做任何檔案或 shell 的工作。它只為這個 session 存放計畫狀態。
-- **Plan mode：** session 進入唯讀 mode。模型進行探索、寫出計畫，然後呼叫 `ExitPlanMode`。這個離開動作由 permission 層管制。
+- **Todo list：**模型會覆寫一份結構化的檢查清單。這個工具不會碰檔案或 shell，只負責保存目前 session 的計畫狀態。
+- **Plan mode：**session 進入唯讀模式後，模型可以探索並撰寫計畫，但必須呼叫 `ExitPlanMode` 並通過 permission gate，才能開始修改。
 
-### New: todos and plan-mode tools
+### 本章新增：todo 與 plan mode 工具
 
 ```python
 @dataclass
@@ -48,7 +48,7 @@ def exit_plan_mode_tool(session):                # src/planning.py
 - `ExitPlanMode` 在核准後改變 `session.mode`。
 - 下一次工具呼叫會透過同一個 permission gate 讀到新的 mode。
 
-### How it integrates
+### 如何接進現有架構
 
 第 3 章的 permission 邏輯已經認得 `PLAN`：
 
@@ -67,32 +67,32 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都會寫入�
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何追蹤計畫並管制執行。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 簡單又便宜。memory 中的 todo list 沒有相依，也沒有鎖。 | 計畫與 todo 狀態撐得過重啟、fork 與 compaction。 |
-| **Cons** | 只是 session 狀態。要跨 turn 存活的工作得交給 task graph（見第 12 章）。 | plan mode 自己擋不住任何東西，要 sandbox 或 approval policy 出手才擋得下編輯。 |
-| **Why** | 計畫只留在 prompt 裡會走丟，而且計畫核准前不該動檔案。 | session log 才是唯一的事實來源，所以計畫狀態也只是一則事件。 |
-| **How: plan artifact** | 一份 todo list 加一個 plan 檔。`TodoWrite` 覆寫清單，從不被管制。 | `todo_write` 把整份清單當成一則事件附加上去，重放事件就能還原清單。 |
-| **How: plan mode** | 有。進入時把 permission mode 切成 plan，session 維持唯讀。 | 一個寫進 log 的旗標，加上 prompt 裡的一段指引文字，不動 permission。 |
-| **How: execution gate** | `ExitPlanMode` 請求核准。不在 plan mode 時，這個呼叫會被拒絕。 | 規劃期間完全不管制。計畫被打回來時，以 tool feedback 回傳。 |
+| **優點** | 簡單又便宜。memory 中的 todo list 沒有相依，也沒有鎖。 | 計畫與 todo 狀態撐得過重啟、fork 與 compaction。 |
+| **限制** | 只是 session 狀態。要跨 turn 存活的工作得交給 task graph（見第 12 章）。 | plan mode 自己擋不住任何東西，要 sandbox 或 approval policy 出手才擋得下編輯。 |
+| **設計原因** | 計畫只留在 prompt 裡會走丟，而且計畫核准前不該動檔案。 | session log 才是唯一的事實來源，所以計畫狀態也只是一則事件。 |
+| **做法：plan artifact** | 一份 todo list 加一個 plan 檔。`TodoWrite` 覆寫清單，從不被管制。 | `todo_write` 把整份清單當成一則事件附加上去，重放事件就能還原清單。 |
+| **做法：plan mode** | 有。進入時把 permission mode 切成 plan，session 維持唯讀。 | 一個寫進 log 的旗標，加上 prompt 裡的一段指引文字，不動 permission。 |
+| **做法：execution gate** | `ExitPlanMode` 請求核准。不在 plan mode 時，這個呼叫會被拒絕。 | 規劃期間完全不管制。計畫被打回來時，以 tool feedback 回傳。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **清單過時：**模型不再更新 todos。要提醒它讓一個項目保持 `in_progress`，並在工作完成時關閉項目。
 - **對小工作過度規劃：**為一個單步驟的任務列 todo list 會增加雜訊。瑣碎的任務就略過它。
 - **Plan mode 無法離開：**有些介面無法顯示核准對話框。在那些介面上要把進入與離開一起停用。
-- **沒進入就離開：**模型可能在不對的情境下呼叫 `ExitPlanMode`。要驗證目前的 mode 是 `plan`。
+- **沒進入就離開：**模型可能在不對的 context 下呼叫 `ExitPlanMode`。要驗證目前的 mode 是 `plan`。
 - **計畫隨 context 消失：**一份扁平的 todo list 是 session 狀態。當工作必須跨越一個 turn 或程序而存活時，要改用 task 系統。
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 04 並加上：
 
@@ -107,7 +107,7 @@ uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/TodoWriteTool/TodoWriteTool.ts`、`tools/EnterPlanModeTool/EnterPlanModeTool.ts`、`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`。

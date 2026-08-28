@@ -1,44 +1,44 @@
 # 13 · Background execution
 
-[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
 
-> 把跑很久的工作移出主 loop 去跑，稍后再汇报。
+> 把耗时工作移到后台执行，主 loop 可以先继续处理其他事。
 
-有些操作要花很久：安装、构建、测试套件、记忆整合，或是一个跑着自己 loop 的 subagent。
+有些操作需要很长时间，例如安装依赖、建置、执行完整测试、整理 memory，或启动一个拥有自己 loop 的 subagent。
 
-基本的 agent loop 会等工具调用完成后，才再次调用 model。
+基本的 agent loop 会等工具调用完成，才进行下一次 model call。
 
-对快速的读取来说这没问题。但有些工作跑很久，明明可以让它自己跑，agent 同时做别的事。这种工作让 loop 干等就很浪费。
+这对快速读取没有问题，但有些工作跑得很久，让整个 loop 原地等待就很浪费。这类工作其实可以自己在后台跑，agent 同时继续处理其他事项。
 
 background execution 必须：
 
-1. 决定哪些操作可以不阻塞地执行。
-2. 启动它们，并立刻返回一个 handle。
-3. 追踪 running、completed、failed 和 killed 这些状态。
-4. 稍后把一则完成消息送回 loop 里。
+1. 判断哪些操作适合用非阻塞方式执行。
+2. 启动工作后立刻返回 handle。
+3. 追踪 `running`、`completed`、`failed` 和 `killed` 等状态。
+4. 工作完成后，再把通知送回 loop。
 
-少了这一层，一个慢指令就能冻结整个 agent。
+少了这一层，一个耗时指令就可能卡住整个 agent。
 
 ---
 
-## 机制
+## 核心机制
 
 ![机制图](assets/13-background-execution.png)
 
-这里有三个部件：
+后台执行由三个部分组成：
 
-1. 一个把工作移出 loop 的 starter，它会返回一个 handle。
-2. 一个追踪 task 状态的 runtime。
-3. 一个 queue，会在稍后的某个 turn 注入一则完成 notification。
+1. starter：把工作移出 loop，并返回 handle。
+2. runtime：持续追踪 task 状态。
+3. queue：等工作完成后，在后续 turn 注入 notification。
 
 loop 不会停下来等这件工作跑完。
 
 - 后台执行是一个执行选项，而不是一种特殊的工具类型。
-- 被放到后台的调用会立刻返回一个正常的 `tool_result`。
+- 被后台化的调用会立刻返回一个正常的 `tool_result`。
 - 真正的结果稍后才会用另一则 notification 送进来。
 - 一整个 subagent 也可以在后台执行。
 
-### New: 在 loop 外启动工作，把 notification 收进对话
+### 本章添加：在 loop 外启动工作，把 notification 收进对话
 
 `start` 在一个 worker thread 上跑工作，并返回一个 task id：
 
@@ -56,7 +56,7 @@ def start(self, fn):                                   # src/background.py; retu
     return tid
 ```
 
-`drain_into` 把已完成的 notification 合并到下一个 user turn：
+`drain_into` 把已完成的 notification 并入下一个 user turn：
 
 ```python
 def drain_into(messages, runtime):                     # src/background.py
@@ -82,7 +82,7 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
 这层包装也决定了 model 会拿到什么。丢到后台的调用只是把工作启动起来：它返回一个 task id，结果稍后才用自己的那则事件送回来。
 跑很久的工具，名字和描述就照这样写（`initiate_export`，不要写成 `export`）。model 才会把当下那则 `tool_result` 读成收据，而不是答案。
 
-### 如何整合
+### 如何集成到现有架构
 
 loop 在一个 turn 开始时，把 queue 里累积的完成 notification 收进对话：
 
@@ -90,14 +90,14 @@ loop 在一个 turn 开始时，把 queue 里累积的完成 notification 收进
 background.drain_into(messages, runtime)               # src/loop.py
 ```
 
-"一个工具调用对一个工具结果"的规则依然成立。一则迟来的完成 notification，不是给旧 `tool_use_id` 的延迟 `tool_result`。它是一则全新的 notification 消息。
+「一个工具调用对一个工具结果」的规则依然成立。一则迟来的完成 notification，不是给旧 `tool_use_id` 的延迟 `tool_result`。它是一则全新的 notification 消息。
 
 ### 延伸阅读
 
 以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
 
-**打断与安全点：**有些消息不能等当前这个工具调用跑完。
-用户的修正、一个取消、一则告警，都可能在调用跑到一半时进来。一种做法是把所有进来的消息都变成同一条 stream 上的 event。
+**打断与安全点：**有些消息不能等目前这个工具调用跑完。
+用户的修正、一个取消、一则警报，都可能在调用跑到一半时进来。一种做法是把所有进来的消息都变成同一条 stream 上的 event。
 loop 只在安全点（safe point）去读这条 stream，也就是一则工具结果刚跑完、下一次 model 调用还没发出的那个空档。
 调用跑到一半硬塞会弄坏对话记录，所以 event 得等那个空档。
 
@@ -117,34 +117,34 @@ ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `too
 
 ---
 
-## 各系统做法
+## 不同系统怎么做
 
-各个 agent 如何把工作移出 loop，又如何汇报完成。
+各个 agent 如何把工作移出 loop，又如何回报完成。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 吞吐量提升，也不再有空闲的等待。单纯的等待不会卡住任何东西。 | 同一个登记处管 shell、终端和 child agent，收结果和喊停都走同一条路。 |
-| **Cons** | 结果可能较晚抵达，顺序也可能颠倒。runtime 要顾状态和清理。 | 叫醒闲着的 agent 会花掉模型轮次，所以得给它一个额度。 |
-| **Why** | 一个跑很久的指令不该冻结整个 agent。 | 工作跑完要让模型知道，而不是叫模型自己一直去问。 |
-| **How: off-loop primitive** | 后台 shell task 和后台 agent task，subprocess 继续跑，输出被重定向。 | 任何工具都能带一个「丢到后台跑」的标志，返回一个 job id。 |
-| **How: notification** | 一则 `<task_notification>` 消息，完成消息走同一个共享 queue。 | 每个 job 一则通知。谁先结束谁算数，重复的会被压下来。 |
-| **How: re-entry** | notification 在 turn 之间收进对话，分 `now`、`next`、`later` 三种优先级。 | agent 忙的话下一步就收到；闲着就叫醒它，次数有上限。 |
+| **优点** | 吞吐量提升，也不再有闲置的等待。单纯的等待不会卡住任何东西。 | 同一个登记处管 shell、终端机和 child agent。 |
+| **限制** | 结果可能较晚抵达，顺序也可能颠倒。runtime 要顾状态和清理。 | 叫醒闲着的 agent 会花掉模型轮次，所以得给它一个额度。 |
+| **设计原因** | 一个跑很久的指令不该冻结整个 agent。 | 工作跑完要让模型知道，而不是叫模型自己一直去问。 |
+| **做法：off-loop primitive** | 后台 shell task 和后台 agent task，subprocess 继续跑，输出被转导。 | 任何工具都能带一个「丢到后台跑」的标志，返回一个 job id。 |
+| **做法：notification** | 一则 `<task_notification>` 消息，完成消息走同一个共享 queue。 | 每个 job 一则通知。谁先结束谁算数，重复的会被压下来。 |
+| **做法：re-entry** | notification 在 turn 之间收进对话，分 `now`、`next`、`later` 三种优先级。 | agent 忙的话下一步就收到；闲着就叫醒它，次数有上限。 |
 
 ---
 
-## 哪里会出错
+## 常见问题
 
-- **交互式提示卡住（Interactive prompt stalls）：**某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非交互方式重跑。
-- **完成消息丢失（Lost completion）：**某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
+- **互动式提示卡住（Interactive prompt stalls）：**某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非互动方式重跑。
+- **完成消息遗失（Lost completion）：**某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
 - **配对错误的 notification（Mispaired notification）：**重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
 - **被 kill 之后的副作用（Side effect after a kill）：**timeout 或取消都不会告诉你那个调用到底做成了没。盲目重试可能扣两次款。先查状态再写入，或带上 idempotency key。
-- **批次 event 稀释注意力（Batched events dilute attention）：**一次 drain 可能把好几则 notification 并进同一个 turn，model 就只回应最后一则。给每则 event 编号，再加一行摘要。
-- **并发太多（Too much concurrency）：**太多后台 task 会耗尽资源。加上 kill 路径和上限。
-- **退出时的 process 泄漏（Process leak on exit）：**后台工作可能活得比 session 还久。注册清理机制。
+- **批次 event 稀释注意力（Batched events dilute attention）：**一次 drain 可能把好几则 notification 并进同一个 turn，model 就只响应最后一则。帮每则 event 编号，再加一行摘要。
+- **并行太多（Too much concurrency）：**太多后台 task 会耗尽资源。加上 kill 路径和上限。
+- **离场时的 process 泄漏（Process leak on exit）：**后台工作可能活得比 session 还久。注册清理机制。
 
 ---
 
-## 可执行程序
+## 动手跑跑看
 
 [`src/`](src/) 把 12 带了过来，并加上：
 
@@ -160,7 +160,7 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 
 ---
 
-## 出处
+## 参考资料
 
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：

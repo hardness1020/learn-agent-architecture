@@ -2,28 +2,28 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> hook 在 loop 周圍的固定點加入行為。
+> hook 讓你在 loop 的固定節點插入額外行為。
 
-hook 是使用者設定的 callback。它們可以在工具呼叫前、工具呼叫後、prompt 送出時，或 session 開始或結束時執行。
+hook 是可以自行設定的 callback，能在工具呼叫前後、prompt 送出時，或 session 開始與結束時執行。
 
-用 hook 來做記錄、驗證、通知，以及小型的政策檢查。沒有 hook，每一個新行為都得改動 loop 或另外分岔它。
+記錄、驗證、通知和簡單的政策檢查都很適合用 hook。少了這層擴充點，每加入一種行為都得修改 loop，甚至另外維護一份分支。
 
-hook 讓 loop 保持精簡。loop 對外提供固定的事件。擴充行為則掛接到那些事件上。
+hook 的價值在於讓 loop 保持精簡。loop 只需要公開固定的生命週期事件，其他行為再掛到對應事件上。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/04-hooks.png)
 
-一個 `Hooks` 物件把事件名稱對應到 callback 清單。loop 不會直接呼叫自訂的檢查。取而代之，`_dispatch` 觸發具名的事件。
+`Hooks` 物件會把事件名稱對應到一組 callback。loop 不必直接知道有哪些自訂檢查，只要由 `_dispatch` 在正確的時間觸發具名事件。
 
 在工具執行方面，有兩個重要的點：
 
 - `PreToolUse` 在 permission gate 之前執行。它可以擋下呼叫，或改寫輸入。
 - `PostToolUse` 在工具呼叫成功之後執行。它可以觀察結果。
 
-### New: hooks
+### 本章新增：hook
 
 ```python
 class Hooks:                                     # src/hooks.py
@@ -43,7 +43,7 @@ class Hooks:                                     # src/hooks.py
 - pre-hook 可以回傳 `{"updated_args": ...}` 來改寫輸入。
 - `fire_post` 在執行之後跑觀察者。
 
-### 如何整合
+### 如何接進現有架構
 
 `_dispatch` 加入了兩個呼叫：
 
@@ -101,22 +101,22 @@ dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何在 loop 周圍提供攔截點。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
-| **Cons** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
-| **Why** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充用的介面，就是 harness 自己在跑的那套事件系統。 |
-| **How: hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
-| **How: fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，位在只會拒絕的 guard 之前。 |
-| **How: can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
+| **優點** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
+| **限制** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
+| **設計原因** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充用的介面，就是 harness 自己在跑的那套事件系統。 |
+| **做法：hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
+| **做法：fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，位在只會拒絕的 guard 之前。 |
+| **做法：can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **hook 繞過 permission：**hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照以規則為基礎的 permission 來解析。
 - **Stop hook 無限 loop：**一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
@@ -127,7 +127,7 @@ dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 03 並加上：
 
@@ -143,7 +143,7 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。

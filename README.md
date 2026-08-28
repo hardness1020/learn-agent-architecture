@@ -22,8 +22,8 @@
   <strong>English</strong> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-The model reasons. The harness gives it action, state, and limits:
-it runs tools, keeps state across calls, gates side effects, and coordinates loops, none of which a model call does by itself.
+The model reasons. The harness turns that reasoning into controlled action: it runs tools, keeps state across calls, gates side effects, and coordinates loops.
+A model call cannot do any of those things by itself.
 
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
 Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
@@ -59,7 +59,7 @@ Every section is self-contained and uses the same four-part lens:
 
 To learn from this repo:
 
-- **Read the sections in order. Each builds on the layer before it**.
+- **Read the sections in order. Each builds on the layer before it.**
 - For a runnable section, read `src/loop.py`, then run its `demo.py`.
 - Diff a section's `src/` against the section before it. The diff is the one mechanism that section adds.
 
@@ -102,7 +102,7 @@ Eight layers, from the basic loop to a harness that runs itself. Each row links 
 | 4  | [Hooks](sections/04-hooks/)                                   | How do extensions attach to the loop?              | `PreToolUse`, `PostToolUse`, lifecycle events     |
 |    | **Layer 2 · Complex Work**                            |                                                    |                                                       |
 | 5  | [Planning &amp; todos](sections/05-planning-todos/)           | How is big work decomposed?                        | Plan mode, todo list, approval before edits           |
-| 6  | [Subagents](sections/06-subagents/)                           | How is a subproblem isolated?                      | Fresh`messages[]`, delegation, child loop           |
+| 6  | [Subagents](sections/06-subagents/)                           | How is a subproblem isolated?                      | Fresh `messages[]`, delegation, child loop          |
 | 7  | [Skills](sections/07-skills/)                                 | How are capabilities loaded on demand?             | `SKILL.md`, catalog, progressive disclosure         |
 | 8  | [Context management](sections/08-context-management/)         | How do long sessions fit the window?               | Budgeting, stubs, compaction, summaries               |
 |    | **Layer 3 · Knowledge & Resilience**                  |                                                    |                                                       |

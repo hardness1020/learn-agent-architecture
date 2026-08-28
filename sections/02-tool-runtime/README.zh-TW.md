@@ -2,35 +2,35 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 新增一項能力，就是註冊一個工具。loop 維持不變。
+> 要替 agent 新增能力，只要註冊工具，不必改動 loop。
 
-agent loop 只能透過工具來行動。模型會發出一個結構化的 `tool_use` 區塊，帶有 `name` 與 `input`。
+agent loop 透過工具與外部世界互動。模型會產生結構化的 `tool_use` 區塊，其中包含工具的 `name` 和 `input`。
 
-harness 把那個名稱對應到程式碼。它驗證輸入、執行 handler，並回傳結果。
+harness 會依名稱找到對應的程式碼，驗證輸入、執行 handler，再把結果送回模型。
 
 這個 runtime 必須：
 
 1. 告訴模型有哪些工具存在。
 2. 描述每個工具的 input schema。
-3. 依名稱把每個 `tool_use` 路由出去。
-4. 在可行時平行執行安全的呼叫。
-5. 讓龐大的工具目錄仍可被探索。
+3. 依名稱把每個 `tool_use` 交給正確的 handler。
+4. 在安全的前提下平行執行多個呼叫。
+5. 即使工具很多，也能讓模型找到需要的工具。
 
-沒有這一層，模型能要求行動，卻沒有東西能真正執行那個行動。
+少了這一層，模型雖然能提出工具呼叫，卻沒有執行環境能把它變成真正的動作。
 
-如果只有一個 `bash` 工具，每一項能力都變成字串處理。沒有各別工具的驗證或權限邏輯。
+如果只提供一個 `bash` 工具，所有能力都會退化成字串處理，也無法為不同工具分別設定驗證和權限規則。
 
-有兩種失敗常被算到模型頭上，其實都是從這一層開始的。兩份 description 彼此重疊，模型就挑錯工具。harness 半路改寫了 input，編輯就失敗。
+有些看似是模型犯的錯，其實源頭在 tool runtime。例如兩個工具的 description 太相似，模型就容易選錯；或 harness 中途改寫 input，導致原本正確的編輯失敗。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/02-tool-runtime.png)
 
-一個工具是一個小物件，帶有名稱、handler、schema 與幾個判定式。registry 依名稱存放工具。dispatch 拿名稱去查表，找到就執行。
+每個工具都是一個小型物件，包含名稱、handler、schema 和幾個屬性。registry 依名稱保存工具，dispatch 則負責查找並執行。
 
-### New: the tool runtime
+### 本章新增：tool runtime
 
 ```python
 @dataclass
@@ -56,7 +56,7 @@ class Registry:                              # src/tools.py
 - `run_concurrently` 會把標記為 `is_concurrency_safe` 的工具批次執行。
 - 不安全的呼叫維持依序執行，所以寫入不會相互競爭。
 
-### How it integrates
+### 如何接進現有架構
 
 第 1 章用的是內嵌的 `HANDLERS` dict。第 2 章把一個 `registry` 傳進 loop，並把每個 `tool_use` 透過 `_dispatch` 路由：
 
@@ -91,12 +91,12 @@ demo 為了清楚起見採依序 dispatch。真實的 runtime 會把安全呼叫
 - **事件觸發：**讓外界把 agent 叫醒。
 - **跟使用者溝通：**找上人。
 
-其中四類後面各有專章。第 6、12、16 章做協作，第 13、14 章做事件觸發，第 19 章做跟使用者溝通的管道。這一章做的是這五類共用的那一層。
+其中四類後面各有專章。第 6、12、16 章做協作，第 13、14 章做事件觸發，第 19 章做跟使用者溝通的管道。本章做的是這五類共用的那一層。
 分類值得特別點出來，是因為每一類的契約不一樣：感知的呼叫可以重跑、也可以一起跑，執行的呼叫不行。
 
 **粒度：**假設 agent 要讀 PDF、Word 和試算表，該給它一個工具，還是三個？
 
-做的事情一樣、吃的輸入也一樣，就合併。一個 `read_document` 帶一個型別參數，比三個長得差不多的讀取工具好挑。
+功能相同、接受的輸入格式也相同，就適合合併。一個帶有型別參數的 `read_document`，會比三個外觀相近的讀取工具更容易選擇。
 參數開始不一樣了就拆開。一份 schema 如果把互不相干的欄位全湊在一起，它講不出哪些欄位該填，模型就會填錯。
 
 **description 怎麼寫：**模型在挑工具之前，唯一讀得到的文字就是 `description`。它不是寫給人看的文件。
@@ -183,23 +183,23 @@ MCP-Zero 讓 agent 說出自己缺哪一種能力，系統先找到對應的 ser
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何定義工具、路由呼叫、處理平行，以及公開一份龐大目錄。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 每個工具各自帶驗證、權限、安全平行和延遲探索。 | 單一 `bash` 工具小得多，也沒有目錄要維護。 | 每個 agent 有自己的工具集，每次呼叫都走同一條可稽核的 pipeline。 |
-| **Cons** | 每個工具都得背一份契約。 | 驗證和權限做不到 per-tool。gate 看到的只有一條指令字串。 | 再簡單的工具也得宣告 output 契約。 |
-| **Why** | 新增一項能力，應該就只是註冊一個工具，loop 維持不變。 | 假設每個行動都能寫成一條 shell 指令，所以一個工具就夠了。 | 同一個 scope 的可見性解析，同時餵給查表、dispatch 和呈現。 |
-| **How: tool definition** | schema、handler 與判定式。 | 一份 `bash` schema，只有一個指令欄位，別的名稱一律報錯。 | schema、型別化的 output 契約、執行本體，加上純函式的呈現器。 |
-| **How: dispatch** | 依名稱查表，含別名。工具池依權限篩選，並合併 MCP 工具。 | 沒有 registry，每次呼叫都是一條 shell 指令。 | 先做 scope 感知的查表，再走五階段的守衛 pipeline。 |
-| **How: parallel calls** | 安全呼叫批次執行，不安全的單獨執行。安全標記預設關閉。 | 沒有。文字模式每次回應只允許一個 action。 | 每次呼叫都先分類，不確定就 fail closed 當 exclusive。 |
-| **How: discovery** | 先給名稱。完整 schema 依精確名稱或關鍵字隨需載入。 | 只有一個工具，不需要。 | 沒有延遲載入。限制和 preset 決定每個 scope 看到什麼。 |
+| **優點** | 每個工具各自帶驗證、權限、安全平行和延遲探索。 | 單一 `bash` 工具小得多，也沒有目錄要維護。 | 每個 agent 有自己的工具集，每次呼叫都走同一條可稽核的 pipeline。 |
+| **限制** | 每個工具都得背一份契約。 | 驗證和權限做不到 per-tool。gate 看到的只有一條指令字串。 | 再簡單的工具也得宣告 output 契約。 |
+| **設計原因** | 新增一項能力，應該就只是註冊一個工具，loop 維持不變。 | 假設每個行動都能寫成一條 shell 指令，所以一個工具就夠了。 | 同一個 scope 的可見性解析，同時餵給查表、dispatch 和呈現。 |
+| **做法：tool definition** | schema、handler 與判定式。 | 一份 `bash` schema，只有一個指令欄位，別的名稱一律報錯。 | schema、型別化的 output 契約、執行本體，加上純函式的呈現器。 |
+| **做法：dispatch** | 依名稱查表，含別名。工具池依權限篩選，並合併 MCP 工具。 | 沒有 registry，每次呼叫都是一條 shell 指令。 | 先做 scope 感知的查表，再走五階段的守衛 pipeline。 |
+| **做法：parallel calls** | 安全呼叫批次執行，不安全的單獨執行。安全標記預設關閉。 | 沒有。文字模式每次回應只允許一個 action。 | 每次呼叫都先分類，不確定就 fail closed 當 exclusive。 |
+| **做法：discovery** | 先給名稱。完整 schema 依精確名稱或關鍵字隨需載入。 | 只有一個工具，不需要。 | 沒有延遲載入。限制和 preset 決定每個 scope 看到什麼。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **未知的工具名稱：**模型指名了一個不存在或已停用的工具。回傳一個 `tool_result` 錯誤，而不是讓 loop 崩潰。
 - **schema 漂移：**schema 說一套，handler 期待另一套。在 dispatch 前先驗證。
@@ -213,7 +213,7 @@ MCP-Zero 讓 agent 說出自己缺哪一種能力，系統先找到對應的 ser
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 01 往前走，並加上：
 
@@ -229,7 +229,7 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：
   `Tool.ts`、`tools.ts`、`services/tools/toolOrchestration.ts`、`services/tools/toolExecution.ts`、`tools/ToolSearchTool/ToolSearchTool.ts`。

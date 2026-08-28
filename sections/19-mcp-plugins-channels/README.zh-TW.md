@@ -2,22 +2,22 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 能力不夠？插進更多。harness 靠一套標準 protocol 接上外面的世界。
+> 透過標準 protocol，讓 harness 不改核心程式也能連接外部能力。
 
-一個 harness（外層架構）只能做它的工具允許它做的事，而每個內建工具都是預先定義好的：input schema、執行邏輯、錯誤處理，全都是。
+harness 能做什麼，取決於它有哪些工具。但每個內建工具都必須預先定義 input schema、執行邏輯和錯誤處理，不可能涵蓋所有外部服務。
 
-這無法擴展到使用者想要的各種服務：issue tracker、部署系統、知識庫。你沒辦法為每一個服務、用它各自的語言，都寫一個專屬工具。
+當使用者想連接 issue tracker、部署系統或知識庫時，逐一為每個服務和程式語言撰寫專屬工具，很快就會失去擴展性。
 
-MCP（Model Context Protocol）就是填補這道缺口的開放標準。一個外部服務宣告它的工具，agent 則盲呼叫它們，不需要知道是誰寫的、怎麼寫的。
-用 MCP 的說法，提供工具的那個服務就是 server，負責連線和呼叫的 harness 就是 client。
+MCP（Model Context Protocol）是一套用來解決這個問題的開放標準。外部服務可以自行宣告工具，agent 只需要按照 schema 呼叫，不必知道工具由誰實作、內部怎麼運作。
+在 MCP 中，提供工具的服務稱為 server，負責連線與呼叫的 harness 則是 client。
 
-於是 agent 不需要任何人動 harness，就得到了 Jira 工具或部署工具。少了 MCP，agent 的能力就停在安裝當下內建的那一套，之後加不了新的。
+這樣一來，不必修改 harness 核心，就能替 agent 加入 Jira 或部署工具。沒有 MCP，agent 的能力只能停留在安裝時內建的工具集合。
 
-MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server 跟 hook、skill 打包在一起，讓人一次裝好；channel 則讓 server 能主動把訊息推回來。兩者都跑在同一套 protocol 上。
+除了 MCP，本章也會介紹建立在它之上的兩個機制：plugin 把 server、hook 和 skill 包成可一次安裝的套件；channel 則讓 server 主動把訊息推回 agent。兩者共用同一套 protocol。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/19-mcp-plugins-channels.png)
 
@@ -53,7 +53,7 @@ MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server �
 好處都出現在使用者看不到的地方：遠端 server 能掛在 load balancer 後面擴展，第一次呼叫少一趟來回，cache 住的工具清單也省 token。
 用到 deprecated 功能的 server 有十二個月的窗口可以遷移。那是 server 作者要做的事，不是使用者的事。
 
-### New: 包裝探索到的工具
+### 本章新增：包裝探索到的工具
 
 `mcp.py` 把每個探索到的規格變成一個 `Tool`。名稱加上命名空間讓 server 永不撞名，並正規化到符合 API 的字元集：
 
@@ -78,7 +78,7 @@ def wrap(server, spec, call):
 - `run` 捕捉了裸工具名與 server 的 `call`，所以 dispatch 被包裝的 `Tool` 時會透過 transport 回呼過去。
 - `readOnlyHint` annotation 成為 `is_read_only`，這正是權限 gate（第 3 章）用來決定放行或詢問的依據。
 
-### New: 探索與合併
+### 本章新增：探索與合併
 
 `connect` 執行一次探索並回傳被包裝的工具；呼叫端把它們合併進 loop 的 `Registry`：
 
@@ -90,9 +90,9 @@ def connect(server, conn):                             # src/mcp.py
 - `conn` 是一個活的 transport：正式環境是 `stdio` 或 `http`，demo 裡是 in-process。探索並不在意是哪一種。
 - 回傳的 `Tool` 註冊進與內建工具同一個池，所以 `registry.schemas()` 會把它們一起公告，loop 也以相同方式 dispatch。
 
-### New: channel 與 plugin 設定
+### 本章新增：channel 與 plugin 設定
 
-這一章還剩兩個小機制。
+本章還剩兩個小機制。
 
 第一個是反向的訊息流：平常是 agent 去呼叫 server，但 server 也可以主動把訊息推進來，例如一則 Slack 訊息到了。harness 把這段文字包上 `<channel>` 標籤，接在 agent 下一輪輸入的前面，模型就會讀到它：
 
@@ -131,9 +131,9 @@ def gate_inbound(source, payload, gates=()):           # src/mcp.py
 - 一個 gate 可以 drop（垃圾訊息、不明寄件者）或 rewrite（遮蔽機密），發生在 loop 看到文字之前。
 - 回傳 `None` 代表這則訊息不會變成任何 turn，垃圾輸入連一次模型呼叫都不用花。
 
-### 如何整合
+### 如何接進現有架構
 
-demo 探索一個 server 並跑一輪 agent。模型盲呼叫這個 MCP 工具：
+demo 會探索一個 server，再執行一輪 agent。模型可以直接呼叫這個 MCP 工具，不需要知道內部實作：
 
 ```python
 reg = Registry()
@@ -176,22 +176,22 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 harness 如何伸手觸及自身之外。
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 任何服務、任何語言都接得上，不用改 harness。 | 其他 client 能把它當 MCP server 來用。 | server 就是一份設定，不重啟也能換掉一台。 |
-| **Cons** | 每個 server 都是新的攻擊面，annotation 還是自己報的。 | channel 誰都能發：垃圾訊息，想操縱 agent 的話也一樣。 | 只接工具，也沒有聊天 channel 能把訊息推進來。 |
-| **Why** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server。 | 每樣東西都是 plugin，MCP server 也只是其中一個。 |
-| **How: transports** | 六種，從本地 stdio 到遠端 http，各連各的池。 | MCP 雙向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一個 plugin。 |
-| **How: plugin format** | 一個 plugin 打包 server、hook、skill，按優先序合併。 | 一份 manifest 加一個註冊進入點。 | 一列一列的設定。patch 用 id 整列換掉。 |
-| **How: tool pool assembly** | 複製、加命名空間，annotation 成為 gate 的權限提示。 | plugin 與 MCP 工具進同一個 registry。 | 一台 server 的工具整批換上，出錯就整批回滾。 |
+| **優點** | 任何服務、任何語言都接得上，不用改 harness。 | 其他 client 能把它當 MCP server 來用。 | server 就是一份設定，不重啟也能換掉一台。 |
+| **限制** | 每個 server 都是新的攻擊面，annotation 還是自己報的。 | channel 誰都能發：垃圾訊息，想操縱 agent 的話也一樣。 | 只接工具，也沒有聊天 channel 能把訊息推進來。 |
+| **設計原因** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server。 | 每樣東西都是 plugin，MCP server 也只是其中一個。 |
+| **做法：transports** | 六種，從本地 stdio 到遠端 http，各連各的池。 | MCP 雙向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一個 plugin。 |
+| **做法：plugin format** | 一個 plugin 打包 server、hook、skill，按優先序合併。 | 一份 manifest 加一個註冊進入點。 | 一列一列的設定。patch 用 id 整列換掉。 |
+| **做法：tool pool assembly** | 複製、加命名空間，annotation 成為 gate 的權限提示。 | plugin 與 MCP 工具進同一個 registry。 | 一台 server 的工具整批換上，出錯就整批回滾。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **撞名（Name collisions）：**兩個 server 都公開 `search`。`mcp__server__tool` 命名空間避免了衝突；但一個名稱含 `__` 的 server 仍會被解析錯誤，所以名稱要保持簡單。
 - **工具清單膨脹（Tool-list bloat）：**太多 server 會造成龐大的工具清單，既花 token 又干擾選擇（第 2 章）。
@@ -212,13 +212,13 @@ harness 如何伸手觸及自身之外。
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 18 章並加上：
 
 - [`mcp.py`](src/mcp.py)：探索與包裝、plugin 設定合併、channel 包裝，以及入站 gate（`gate_inbound`）。
 - [`test.py`](src/test.py)：探索與命名空間、權限提示的對應、連同 gate 合併進池、設定優先序、channel 標籤，以及入站的 drop 與 rewrite。
-- [`demo.py`](src/demo.py)：一輪 agent 透過探索到的 `mcp__kb__search` 盲呼叫一個 in-process MCP 工具。
+- [`demo.py`](src/demo.py)：一輪 agent 透過探索到的 `mcp__kb__search`，直接呼叫一個 in-process MCP 工具。
 
 loop 與 dispatch 都不變。MCP 只是往第 2 章的池裡加工具；第 3 章的 gate 讀取它們自我宣告的 annotation。
 
@@ -229,7 +229,7 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code MCP transport](https://github.com/yasasbanukaofficial/claude-code)：
   `services/mcp/types.ts`（`TransportSchema`）、`client.ts`（`MCPTool` cloning、`buildMcpToolName`）、`normalization.ts`（`normalizeNameForMCP`）。

@@ -2,26 +2,26 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 給平行運作的 agent 各自獨立的工作目錄。
+> 為平行工作的 agent 準備彼此隔離的工作目錄。
 
-單一工作目錄是共用的可變狀態。如果兩個 agent 同時寫入同一個檔案，其中一個可能覆蓋掉另一個的成果。
+單一工作目錄是一份共用的可變狀態。兩個 agent 同時修改同一個檔案時，其中一方很可能覆蓋另一方的成果。
 
-task 系統決定有哪些工作要做。subagent 決定工作怎麼拆分。worktree isolation 則把寫入隔開：每個 agent 寫在自己的目錄，不會互相干擾。
+task system 負責記錄有哪些工作，subagent 負責拆分與執行，而 worktree isolation 則把實際寫入隔開。每個 agent 都在自己的目錄工作，避免互相干擾。
 
-每個工作單元都有自己的 checkout 和 branch。agent 的檔案工具與 shell 工具會在那個 checkout 裡解析路徑。
+每個工作單元都有獨立的 checkout 和 branch，agent 的檔案工具與 shell 工具也只會在該 checkout 中解析路徑。
 
 隔離層必須：
 
-1. 為每個工作單元建立一份私有 checkout。
-2. 把工具綁定到那份 checkout。
-3. 拒絕會逃出 worktree 根目錄的名稱。
-4. 移除乾淨的 worktree，保留有變更的以供審查。
+1. 為每個工作單元建立獨立 checkout。
+2. 把所有工具綁定到對應的 checkout。
+3. 拒絕任何可能逃出 worktree 根目錄的路徑。
+4. 自動移除沒有變更的 worktree，保留有改動的版本供後續審查。
 
-沒有這一層，好幾個 agent 同時改同一個目錄，檔案就可能被改壞。
+沒有這一層，多個 agent 同時修改同一個目錄時，很容易造成衝突或損壞檔案。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/15-worktree-isolation.png)
 
@@ -37,7 +37,7 @@ task 系統決定有哪些工作要做。subagent 決定工作怎麼拆分。wor
 - 工具從 context 讀取 `get_cwd()`，而不是從全域 process cwd 讀取。
 - 收尾清理時，只移除乾淨的 worktree。有變更的會保留下來供審查。
 
-### New: worktree 與 cwd 綁定
+### 本章新增：worktree 與 cwd 綁定
 
 `worktree.py` 驗證一個 slug、建立一個 worktree，並透過 context variable 綁定 cwd：
 
@@ -67,7 +67,7 @@ def remove(repo_root, slug, force=False):
 - `validate_slug` 拒絕路徑穿越與不允許的字元。
 - `remove` 除非強制，否則拒絕移除有變更的 worktree。
 
-### 如何整合
+### 如何接進現有架構
 
 隔離從 loop 外面包住一個 turn：
 
@@ -84,22 +84,22 @@ loop 與 subagent 路徑不需要特殊邏輯。只有工具看到的工作目�
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各系統如何隔離平行工作並在事後清理。
 
 | | Claude Code |
 | --- | --- |
-| **Pros** | 真正的檔案系統隔離，diff 也乾淨。有變更的 worktree 會留下來供審查，成果不會默默遺失。 |
-| **Cons** | 要付出硬碟空間、建置時間，以及之後的 merge 步驟。 |
-| **Why** | 好幾個 agent 同時寫同一個目錄不安全，所以每個工作單元都在自己的 checkout 裡寫。 |
-| **How: isolation unit** | 每個 task 或 session 一個 git worktree，各自有自己的 branch。模型開 subagent 時可以自己要求一個。 |
-| **How: binding** | subagent 用限定範圍的 cwd，並行的 agent 互不影響。session 模式改 process cwd。綁定存在於 cwd 範圍裡，task 記錄不存。 |
-| **How: cleanup** | 移除乾淨的 worktree。有變更的會保留，除非使用者明確捨棄變更。週期性的清掃會移除舊的臨時 worktree。 |
+| **優點** | 真正的檔案系統隔離，diff 也乾淨。有變更的 worktree 會留下來供審查，成果不會默默遺失。 |
+| **限制** | 要付出硬碟空間、建置時間，以及之後的 merge 步驟。 |
+| **設計原因** | 好幾個 agent 同時寫同一個目錄不安全，所以每個工作單元都在自己的 checkout 裡寫。 |
+| **做法：isolation unit** | 每個 task 或 session 一個 git worktree，各自有自己的 branch。模型開 subagent 時可以自己要求一個。 |
+| **做法：binding** | subagent 用限定範圍的 cwd，並行的 agent 互不影響。session 模式改 process cwd。綁定存在於 cwd 範圍裡，task 記錄不存。 |
+| **做法：cleanup** | 移除乾淨的 worktree。有變更的會保留，除非使用者明確捨棄變更。週期性的清掃會移除舊的臨時 worktree。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **slug 裡的路徑穿越：**在路徑組合或 git 指令之前先驗證。
 - **移除時默默遺失：**除非使用者明確捨棄變更，否則保留有變更的 worktree。
@@ -109,7 +109,7 @@ loop 與 subagent 路徑不需要特殊邏輯。只有工具看到的工作目�
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 14 章並加上：
 
@@ -126,7 +126,7 @@ uv run python sections/15-worktree-isolation/src/demo.py  # live demo, needs a k
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/EnterWorktreeTool/`、`tools/ExitWorktreeTool/`、`utils/worktree.ts`、`utils/cwd.ts`、`tools/AgentTool/AgentTool.tsx`。
