@@ -183,6 +183,8 @@ How each agent emits telemetry, tracks spend, and feeds the eval set.
 
 ---
 
+For a complementary live-web example, [ClawBench](https://github.com/reacher-z/ClawBench) evaluates computer-using agents on isolated multi-step tasks and records replayable execution traces, request interception, and browser actions. Its task-level evidence model illustrates how an offline evaluator can retain enough context to diagnose regressions rather than expose only an aggregate score. See the [paper](https://arxiv.org/abs/2604.08523) and [project site](https://claw-bench.com/).
+
 ## Runnable
 
 [`src/`](src/) carries 19 forward and adds:
