@@ -2,25 +2,25 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 別再問 model 下一步跑什麼。把你已經知道的流程寫進程式碼，model 只用在需要判斷的地方。
+> 已知的流程交給程式碼控制，只有真正需要判斷時才呼叫 model。
 
-第 21 章在一個 agent 外面堆疊 loop。這一章整理的是 model 呼叫和呼叫之間的流程。
+第 21 章把多層 loop 疊在 agent 外面，本章則進一步整理多次 model call 之間的流程。
 
-很多任務的流程，還沒呼叫 model 你就知道了：先分類工單再處理、先 review diff 再 commit、先拿到核准再做對外的動作。
-普通的 agent loop 每次執行都靠問 model 下一步做什麼，把整個流程重新摸索一遍。把 routing 交給 model 很慢、燒 token，而且每次跑都不一樣。
+許多任務的步驟在呼叫 model 前就已經很清楚，例如先分類工單再處理、先 review diff 再 commit，或先取得核准再執行外部動作。
+一般 agent loop 每次都詢問 model 下一步該做什麼，等於重新探索一次既定流程。這種 routing 不只速度慢、消耗 token，執行結果也不夠穩定。
 
-Graph engineering 就是把你已經知道的流程，用程式碼寫成一張有向圖（directed graph）：
+Graph engineering 的做法，是把已知流程用程式碼寫成一張有向圖（directed graph）：
 
-1. Node 負責做事。一個 node 可以是純程式碼、一次 model 呼叫，或一整趟 agent 執行。
-2. Edge 決定下一個 node。由 harness 用程式碼判斷，不用 model 呼叫。
-3. 允許 cycle。重試、review 後修改、人工暫停，都需要一條往回走的路。
-4. State 是一筆在圖上流動的紀錄。每個 node 讀它，再把自己的更新寫回去。
+1. **Node** 負責執行工作，可以是一般程式碼、一次 model call，或完整的 agent run。
+2. **Edge** 決定下一個 node，由 harness 用程式碼選擇，不必再問 model。
+3. **Cycle** 讓流程可以回頭，適合重試、review 後修改，或人工暫停後繼續。
+4. **State** 是沿著圖傳遞的資料，每個 node 讀取目前狀態，再寫回自己的更新。
 
-流程寫在程式碼裡，要判斷的地方才交給 model。loop（第 21 章）就是這種圖的最小版本：兩個 node 加一條往回的 edge。這一章把它擴展成 node 更多、接法更自由的圖。
+原則很簡單：已知流程寫進程式碼，只有需要語意判斷的部分才交給 model。第 21 章的 loop 就是最小型的圖，由兩個 node 和一條回邊組成；本章會把它擴充成節點更多、連接方式更彈性的結構。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/22-graph-engineering.png)
 
@@ -55,7 +55,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 - **Model node：**一次 LLM 呼叫，例如分類器。有限度的判斷。
 - **Agent node：**一整個第 1 章的 loop，帶著 tool。開放式的判斷，但被固定在一個位置上。
 
-`agent_node` 把內層 loop 掛成一個 node。每次經過都用 state 組出 prompt，在全新的 `messages[]` 上跑 `run_turn`，
+`agent_node` 把內層 loop 包裝成一個 node。每次經過時都會根據 state 產生 prompt，再用全新的 `messages[]` 執行 `run_turn`，
 所以這個 node 只看得到 prompt builder 給它的部分，不是整趟執行。
 
 怎麼選？原則就是省 token：分支條件寫得出來的，就交給程式碼；model 呼叫只留給真的需要判斷的 node。
@@ -71,7 +71,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 - **Evaluator-optimizer：**一個 worker node、一個 checker node，加一條往回的 edge。這就是第 21 章的驗證 loop，放進圖裡變成一個子圖。
 
 各家的講法還沒統一。同樣的東西，`ai-agent-book` 用的詞是「collaboration topology」和「orchestration」，「graph engineering」它只在術語註記裡提了一句。
-這一章還是用自己的名字，因為它講的就是一張寫在程式碼裡的圖。你去看別的來源時，對照的是機制，不是那個詞。
+本章還是用自己的名字，因為它講的就是一張寫在程式碼裡的圖。你去看別的來源時，對照的是機制，不是那個詞。
 
 ### 什麼時候不要畫圖
 
@@ -81,9 +81,9 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 最常見的其實是混合式：把 agent 當成固定圖裡的一個 node。圖保證 review 一定會發生，agent 決定在自己的位置裡怎麼把事做完。
 
-### 如何整合
+### 如何接進現有架構
 
-這一章只加了一個小元件（edge map），其他都沿用前面的：
+本章只加了一個小元件（edge map），其他都沿用前面的：
 
 - node 做的事就是第 1 章的 loop；`agent_node` 原封不動包住 `run_turn`。
 - 程式碼判斷的 edge 沿用第 2 章的 dispatch 紀律：查表，不是 model 的輸出。
@@ -127,12 +127,12 @@ history 原封不動留著，所以沒有東西要打包給下一個 phase。書
 harness 把這個呼叫當成 edge，接著開始下一個 phase。gate 是唯一的出口，所以一個 phase 什麼時候結束，是 harness 說了算，不是 model。
 
 **路線：**先跑 explore，再跑 implement，最後 review。review 沒過就把執行送回 implement，
-implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用這一章的講法，這就是一條路加一條往回的 edge，
+implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用本章的講法，這就是一條路加一條往回的 edge，
 跟前面的 evaluator-optimizer 同一個形狀。
 
 **要掛哪一種：**分支之間沒關係，就用全新的 `messages[]`；幾個 node 是同一件工作的不同階段，就留同一條 trajectory。
 全新的 `messages[]` 讓每個 node 的 window 都很小，分支之間也互不干擾。
-只留一條 trajectory 則是前面查到的東西都還看得到，但路愈長，被吃掉的 window 也愈多。這是 context 怎麼分配的問題（第 8 章）。
+只保留一條 trajectory 的好處，是前面找到的資訊都還看得到；代價是流程愈長，占用的 context window 就愈多。這屬於 context 分配問題（第 8 章）。
 
 **這樣算不算 multi-agent：**書把這個做法算成 multi-agent，理由是每個 phase 的 prompt 和 tool 都換掉了。
 這個 repo 則算成同一個 agent 換了 prompt 和 tool。用哪個名字，機制都是同一個，所以引用這個結果的時候，先講清楚你用的是哪個定義。
@@ -141,22 +141,22 @@ implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 怎麼決定下一步跑什麼。
 
 | | Claude Code | Hermes Agent | mini-swe-agent |
 | --- | --- | --- | --- |
-| **Pros** | Routing 是程式碼：不花 token、不會變來變去。續跑時跑完的 node 從紀錄重放。 | 不用事先畫圖，任務長什麼樣，結構就長什麼樣。 | 整張圖一眼就能看完。 |
-| **Cons** | 圖活在單次執行的 script 裡，不是可以重用的宣告式圖。 | Routing 花 model 的 token，每次跑可能不一樣。 | 所有任務共用同一個形狀，沒有分支可以特化。 |
-| **Why** | 把編排當成程式：script 寫好一次，harness 每次都決定性地執行。 | 假設助理型工作太開放，結構沒辦法預先宣告。 | 一個 baseline：所有選擇都留在 model 裡，harness 只留一個 cycle。 |
-| **How: nodes** | 一個 node 一個 subagent，回傳通過 schema 驗證的結構化輸出。 | 委派出去的 subagent，深度和並行數都有上限。 | 兩個：一個 model step、一個 environment step。 |
-| **How: routing** | 階段之間用普通的 script 程式碼：條件、迴圈、pipeline、平行分派。 | model 用 tool call 選路，沒有寫在程式碼裡的 edge。 | 一個固定的 cycle，跑到 model 提交或 budget 用完為止。 |
-| **How: state** | 階段的回傳值往下傳；journal 記下每個 node 的輸出供續跑。 | 結果經過 completion queue 回到呼叫端。 | message list 就是全部的 state。 |
+| **優點** | Routing 是程式碼：不花 token、不會變來變去。續跑時跑完的 node 從紀錄重放。 | 不用事先畫圖，任務長什麼樣，結構就長什麼樣。 | 整張圖一眼就能看完。 |
+| **限制** | 圖活在單次執行的 script 裡，不是可以重用的宣告式圖。 | Routing 花 model 的 token，每次跑可能不一樣。 | 所有任務共用同一個形狀，沒有分支可以特化。 |
+| **設計原因** | 把編排當成程式：script 寫好一次，harness 每次都決定性地執行。 | 假設助理型工作太開放，結構沒辦法預先宣告。 | 一個 baseline：所有選擇都留在 model 裡，harness 只留一個 cycle。 |
+| **做法：nodes** | 一個 node 一個 subagent，回傳通過 schema 驗證的結構化輸出。 | 委派出去的 subagent，深度和並行數都有上限。 | 兩個：一個 model step、一個 environment step。 |
+| **做法：routing** | 階段之間用普通的 script 程式碼：條件、迴圈、pipeline、平行分派。 | model 用 tool call 選路，沒有寫在程式碼裡的 edge。 | 一個固定的 cycle，跑到 model 提交或 budget 用完為止。 |
+| **做法：state** | 階段的回傳值往下傳；journal 記下每個 node 的輸出供續跑。 | 結果經過 completion queue 回到呼叫端。 | message list 就是全部的 state。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **Model 當 router（Model as router）：**把選路交給 model，燒 token、增加延遲，而且每次跑不一樣。最上游選錯一次，後面全部跟著錯。
   緩解：轉移用程式碼判斷；model 呼叫留給需要判斷的 node。
@@ -176,7 +176,7 @@ implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 把 21 帶了過來，並加上：
 
@@ -193,7 +193,7 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 
 ---
 
-## 出處
+## 參考資料
 
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph)：node、edge、cycle、把 agent 當 node，以及什麼時候不要畫圖。
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)：workflow 與 agent 的分界，加上五種 workflow 圖形。

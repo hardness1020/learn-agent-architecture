@@ -2,23 +2,21 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 每個動作在真正碰到系統之前，都要先檢查。
+> 每個動作真正影響系統前，都必須先通過檢查。
 
-模型可以要求執行任何已啟用的工具。permission 層負責決定該次呼叫是否可以執行。
+模型可以要求使用任何已啟用的工具，permission 層則負責判斷這次呼叫能不能真的執行。
 
-一個沒有 permission 的工具執行環境，幾乎等同於一個無人看管的遠端 shell。
+沒有 permission gate 的工具執行環境，幾乎等同於一個沒人看管的遠端 shell。
 
-一次錯誤的工具呼叫可能刪除檔案、洩漏機密，或推送錯誤的程式碼。信任模型不是一道安全邊界。程式必須在執行前檢查請求。
+一次錯誤的工具呼叫就可能刪除檔案、洩漏機密，或推送錯誤的程式碼。單靠信任模型不能構成安全邊界，程式必須在執行前檢查每個請求。
 
-原因很單純：模型讀進去的文字，很多不是你寫的。一個網頁、一則 issue 留言、repo 裡的一個檔案，都可能夾帶對 agent 下的指令。
-這些指令能造成多大的傷害，看三種能力：agent 讀得到私密資料、agent 會讀進不可信的內容、agent 送得出資料。
-三樣只湊到兩樣還撐得住。三樣同時到齊，被注入的那段文字就能叫 agent 打開機密，再把它送到外面去。這個組合叫做 lethal trifecta。
+原因很簡單：模型讀到的內容不一定是你寫的。網頁、issue 留言或 repo 裡的檔案，都可能暗藏操控 agent 的指令。
+風險取決於三項能力：agent 能讀取私密資料、會接觸不可信內容，而且能把資料送到外部。
+只有其中兩項時，風險還能控制；三項同時出現，惡意內容就可能誘使 agent 讀取機密並外傳。這個組合稱為 lethal trifecta。
 
-持久化的 memory 會讓情況更糟。被注入的指令一旦寫進 memory 檔案（第 9 章），下一次 session 就會把它讀回來。
-一次注入因此在原本那段對話早就結束之後，還繼續有效。
+持久化 memory 會進一步放大風險。惡意指令一旦被寫進 memory 檔案（第 9 章），下一次 session 就會把它讀回來，讓一次注入延續到原本對話結束之後。
 
-這三種能力，gate 拿不掉。什麼都不能讀、什麼都連不到的 agent 也做不了事。所以 gate 改做另外兩件事：
-一是在會湊齊這三樣的呼叫前面擺一道決策，二是在放行的呼叫後面擺一個沙箱。
+permission gate 無法直接拿掉這三種能力，否則 agent 也無法完成工作。它改用兩層保護：會湊齊這三項能力的呼叫，前面先擺一道決策；已經放行的呼叫，後面再用 sandbox 限制影響範圍。
 
 permission 層必須做到：
 
@@ -31,7 +29,7 @@ permission 層必須做到：
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/03-permission-and-sandbox.png)
 
@@ -43,7 +41,7 @@ permission 層必須做到：
 
 mode 會改變預設行為。舉例來說，plan mode 允許唯讀工具，但在計畫核准前拒絕編輯。
 
-### New: the gate
+### 本章新增：permission gate
 
 `decide()` 就是整個 permission 決策：
 
@@ -64,7 +62,7 @@ def decide(tool, mode, allow_rules) -> str:      # src/permissions.py (new)
 
 這個函式沒有 I/O。這讓它可以一個 mode 一個 mode 地輕鬆測試。
 
-### How it integrates
+### 如何接進現有架構
 
 gate 在 `_dispatch` 內部執行，就在 `run_tool` 之前：
 
@@ -132,23 +130,23 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何管制副作用、切換 mode，以及記住決策。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | mode、有序規則與沙箱化提供精確的控制。 | 幾分鐘就能稽核完。拒絕會落回對話，模型讀得到原因。 | 拒絕只會收緊，沙箱判定 fail closed。 |
-| **Cons** | 要推敲的狀態很多。bypass 和預先核准的路徑都必須保持狹窄。 | 對每條指令一視同仁，而且什麼都不記。 | 政策分散在 guard、approval、沙箱和 preset 之間。 |
-| **Why** | 每次呼叫都問會造成核准疲勞，所以系統會把核准記下來。 | 損害交給環境去限制，一個確認提示加一份 regex 清單就夠了。 | 每個關注點都是自己獨立的 fail-closed 服務。 |
-| **How: gate point** | 每個工具執行前。Web、MCP 與遠端執行各有核准路徑。 | 每一步的指令執行前。按 Enter 就核准，留言就是拒絕。 | 先跑 pre-execute 事件，再跑只會拒絕的 guard。 |
-| **How: permission modes** | Default、edit-approved、plan、deny 與 bypass。 | `human`、`confirm` 與 `yolo`，執行期可以切換。 | 沙箱 mode 加上 ask 或 never，打包成 preset。 |
-| **How: sandbox** | Bash 可以在沙箱內執行。 | 環境 class 就是沙箱：主機本身、容器，或包住執行。 | provider 逐次把 argv 包起來，拒絕會分類好讀回來。 |
-| **How: rule persistence** | 規則依優先序合併，可存到 session 或 settings。 | 白名單 regex 只寫在 config，符合的指令跳過確認。 | 旋鈕變動是 log 事件，重放折疊出政策。 |
+| **優點** | mode、有序規則與沙箱化提供精確的控制。 | 幾分鐘就能稽核完。拒絕會落回對話，模型讀得到原因。 | 拒絕只會收緊，沙箱判定 fail closed。 |
+| **限制** | 要推敲的狀態很多。bypass 和預先核准的路徑都必須保持狹窄。 | 對每條指令一視同仁，而且什麼都不記。 | 政策分散在 guard、approval、沙箱和 preset 之間。 |
+| **設計原因** | 每次呼叫都問會造成核准疲勞，所以系統會把核准記下來。 | 損害交給環境去限制，一個確認提示加一份 regex 清單就夠了。 | 每個關注點都是自己獨立的 fail-closed 服務。 |
+| **做法：gate point** | 每個工具執行前。Web、MCP 與遠端執行各有核准路徑。 | 每一步的指令執行前。按 Enter 就核准，留言就是拒絕。 | 先跑 pre-execute 事件，再跑只會拒絕的 guard。 |
+| **做法：permission modes** | Default、edit-approved、plan、deny 與 bypass。 | `human`、`confirm` 與 `yolo`，執行期可以切換。 | 沙箱 mode 加上 ask 或 never，打包成 preset。 |
+| **做法：sandbox** | Bash 可以在沙箱內執行。 | 環境 class 就是沙箱：主機本身、容器，或包住執行。 | provider 逐次把 argv 包起來，拒絕會分類好讀回來。 |
+| **做法：rule persistence** | 規則依優先序合併，可存到 session 或 settings。 | 白名單 regex 只寫在 config，符合的指令跳過確認。 | 旋鈕變動是 log 事件，重放折疊出政策。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **Pattern-match bypass：**字串式的 deny 清單會漏掉 shell 的各種變體。先把指令解析出來，看它實際會做什麼，再讓沙箱擋在解析器後面。
 - **Mode 開得太寬：**一條範圍過大的 allow 規則或 bypass mode，可能讓後續的高風險呼叫悄悄執行。限縮 bypass 的範圍，並讓目前的 mode 顯示出來。
@@ -162,7 +160,7 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 02 並加上：
 
@@ -176,7 +174,7 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`hooks/useCanUseTool.tsx`、`types/permissions.ts`、`utils/permissions/PermissionUpdate.ts`。
 - [Claude Code 沙箱與 web gate](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/shouldUseSandbox.ts`、`tools/WebFetchTool/preapproved.ts`。

@@ -2,36 +2,36 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> lead 依任務規模組出一個團隊，把隊友各自 spawn 到獨立的 thread 上，大家透過共用的 inbox 交談。
+> lead 依任務規模組成團隊，讓每位 agent 在獨立 thread 上工作，再透過 inbox 協作。
 
-一個 agent 只有一個 context window，同一時間也只能做一件事。大型任務通常需要多個 agent 同時運作。
+單一 agent 只有一個 context window，同一時間能處理的工作也有限。面對大型任務，往往需要多個 agent 同時進行。
 
-subagent 可以處理聚焦的任務，但一次性的 subagent 一旦啟動就很難再引導。
+subagent 適合處理範圍明確的子任務，但一次性的 subagent 啟動後，很難在執行途中持續溝通或調整方向。
 
-每多一個 agent 就多一份 token 開銷，而且兩個 agent 可能把同一個檔案往不同方向改。
-所以第一個要決定的是團隊的形狀：要幾個 agent、它們共不共用 context、誰叫誰做事。
+每增加一個 agent，就會增加 token 成本，也可能讓多個 agent 對同一個檔案做出互相衝突的修改。
+因此，第一個要解決的不是如何 spawn，而是團隊結構：需要幾個 agent、是否共用 context，以及誰負責指派工作。
 
-要協調的 agent 需要一種方式互相 spawn、需要穩定的名字、需要 inbox 來交談，還需要一種方式把權限請求送回給使用者。
+要讓多個 agent 真正協作，系統必須提供穩定的身分、spawn 機制、可收發訊息的 inbox，以及把權限請求送回使用者的管道。
 
 協調必須：
 
-1. 給 agent 穩定的位址。
-2. 讓 lead 依任務規模組出團隊。
-3. 讓 lead 把每個隊友 spawn 到各自的 thread 上。
-4. 讓每個隊友自己拉取 inbox 並行動，不需要 harness 的程式一步步驅動。
-5. 把有閘門的動作層層往上轉，最後送到使用者面前審核。
+1. 為每個 agent 提供穩定、可尋址的身分。
+2. 讓 lead 依任務規模決定團隊結構。
+3. 讓每位成員在自己的 thread 上執行。
+4. 讓成員主動讀取 inbox 並採取行動，不必由 harness 逐步控制。
+5. 將需要核准的動作往上轉交，直到使用者做出決定。
 
-沒有這一層，大型工作要嘛維持序列進行，要嘛拆成無法協作的 worker。
+少了 coordination，大型工作只能依序處理，或拆成一群彼此無法溝通的 worker。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/16-coordination.png)
 
-每個 agent 擁有一個 inbox。送出訊息就是寫入收件者的 inbox。收件者要等到自己去讀 inbox 時，才會真的收到。
+每個 agent 都有自己的 inbox。傳送訊息時，內容會寫進收件者的 inbox；等收件者主動讀取時，訊息才會進入它的工作流程。
 
-團隊要有幾個人、各叫什麼名字，是 lead 的 LLM 在執行時看任務自己決定的，不是寫死在程式裡。lead 呼叫 `TeamCreate` 組出團隊，接著 spawn 每一位成員。
+團隊要有幾個人、各叫什麼名字，會由 lead 的 LLM 在執行時根據任務決定，而不是寫死在程式裡。lead 先呼叫 `TeamCreate` 組成團隊，再 spawn 每一位成員。
 
 lead 不會親手啟動隊友。它呼叫 `SpawnTeammate`，由 harness 在背景 thread 上跑隊友的 loop（第 13 章）。
 隊友接著拉取自己的 inbox 並行動，沒有任何程式在逐步驅動誰。
@@ -47,7 +47,7 @@ demo 裡沒有中央 broker。有的是名字、inbox 路徑與訊息格式的�
 - 隊友每次 poll 都會讀自己的 inbox，把新訊息併入下一個 turn。
 - 權限請求走同一個管道。
 
-### New: 組出團隊
+### 本章新增：組成團隊
 
 `TeamCreate` 是 lead 呼叫來決定名單規模與組成的工具。它填入一個單槽的 holder，harness 在 spawn 每位成員時讀回：
 
@@ -61,10 +61,10 @@ def team_tools(root, me, formed):                      # src/mailbox.py
 ```
 
 - 規模和名字都沒有寫死在程式裡；兩者都由 lead 的 LLM 依任務挑選。
-- `SendMessage` 在 `TeamCreate` 執行前是無作用的，所以 lead 得先組出團隊才能對它說話。
+- `SendMessage` 在 `TeamCreate` 執行前不會生效，所以 lead 必須先組成團隊才能傳送訊息。
 - `formed` 是一個單槽的 holder（ponytail：一個 in-process 的團隊登記表替身；可以用一個名單檔案作為後端，讓另一個 process 的隊友加入）。
 
-### New: spawn 一個隊友
+### 本章新增：spawn 一個隊友
 
 `SpawnTeammate` 是 lead 的模型呼叫的工具。harness 在第 13 章的 runtime 上、在自己的 thread 上啟動隊友的 loop：
 
@@ -99,8 +99,8 @@ def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):   # src/ma
 context 各自獨立的 agent 只有兩種講話的方式，跟 process 之間的那兩種一樣。
 shared memory 是大家讀寫同一個地方，看到的狀態是同一份。message passing 是 sender 把一份副本寄給指定的 receiver，兩邊沒有共用任何東西。
 承載這兩種的管道有三條。工具呼叫的參數只有單向，沒有回話的路。檔案重開機也還在，但需要 lock。
-message bus 多了位址和順序，但要有寫進磁碟才撐得過重開機。
-這裡的 inbox 是一個上了 lock 的檔案，所以它是跑在共用檔案系統上的 message passing。
+message bus 多了位址與順序資訊，但只有持久化到磁碟後，才能在重開機後繼續使用。
+這裡的 inbox 是一個受 lock 保護的檔案，因此本質上是在共用檔案系統上實作 message passing。
 team memory（第 9 章）和 task 看板（第 18 章）則是 shared memory 那一邊。
 大部分團隊兩種都要：用訊息把工作發下去，用 shared memory 放那些比一則訊息活得更久的事實。
 
@@ -152,7 +152,7 @@ def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
 approver 會 poll 自己的 inbox 直到 `timeout`，然後 deny：沒有人回答的權限就是不行，絕不是卡住或放行。
 這對應 Hermes 的 clarify gateway：`wait_for_response` 會 block 住 agent thread，直到聊天 adapter 回答或 timeout 到期。
 
-### 如何整合
+### 如何接進現有架構
 
 demo 跑一個主 agent。lead 走一步，隊友就自己運作起來：
 
@@ -177,7 +177,7 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 
 **什麼時候一個團隊會贏過單一 agent：**只有當第二個 agent 能帶回第一個看不到的東西，才值得多加一個。
 一份測試結果、一張截圖、一個抓回來的網頁、一個從運行中的系統問到的答案。這些叫新資訊。
-把同一份文字再讀一遍然後投票的 agent，帶不回新資訊，只是多花 token。
+如果多個 agent 只是重讀同一份文字再投票，並不會產生新資訊，只會增加 token 成本。
 
 有兩份公開的結果講出了做錯的代價。Tran 和 Kiela 給單一 agent 和一個團隊同樣的 thinking token 預算，在他們測的那些任務上，單一 agent 跟得上。
 Anthropic 則說他們的 research 團隊會用掉大約單次對話 turn 十五倍的 token。這麼貴的團隊總得帶回點什麼。
@@ -198,7 +198,7 @@ Anthropic 則說他們的 research 團隊會用掉大約單次對話 turn 十五
 - **管理者：**一個 lead 把工作拆開、發出去、再把回來的結果合起來。子代回傳的是摘要，不是自己的歷史。
 - **去中心化：**沒有 lead。每個 agent 自己決定下一棒交給誰。
 
-這一章做的是管理者。lead 幫所有人規劃，所以計畫拆錯了就是錯了，下游沒有 worker 補得回來。
+本章做的是管理者。lead 幫所有人規劃，所以計畫拆錯了就是錯了，下游沒有 worker 補得回來。
 這就是為什麼最強的模型要給 lead，worker 用便宜的就好。
 
 **去中心化的團隊怎麼把工作送到人手上：**沒有 lead，工作還是得找到下一個 agent。三種公開的設計，三條路：
@@ -236,23 +236,23 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 一種設計如何 spawn 出協作的 agent 並把工作分散給它們。
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 隊友能直接交談，檔案 inbox 還能跨 process 或機器。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
-| **Cons** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
-| **Why** | 隊友彼此對等，需要 inbox 交談，也需要一條送回人的路。 | 協調維持 parent 對 child。 | 協調就是歸屬關係，每個子代只有一個 parent。 |
-| **How: teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，長命的那種會常駐。 |
-| **How: channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway RPC。 | 只有 parent 對 child。子代用 report 工具回話。 |
-| **How: shared memory** | team task list 與團隊 memory 目錄。 | 共用的 session DB，外加 lineage 標記。 | parent 的工作目錄。fork 還會複製它跑完的 turn。 |
-| **How: permission bubbling** | remote 權限請求轉成本地的審核提示。 | clarify 導向聊天平台，子代自動 deny 或 approve。 | 權限請求沿著 parent 這條線往上問。 |
+| **優點** | 隊友能直接交談，檔案 inbox 還能跨 process 或機器。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
+| **限制** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
+| **設計原因** | 隊友彼此對等，需要 inbox 交談，也需要一條送回人的路。 | 協調維持 parent 對 child。 | 協調就是歸屬關係，每個子代只有一個 parent。 |
+| **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，長命的那種會常駐。 |
+| **做法：channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway RPC。 | 只有 parent 對 child。子代用 report 工具回話。 |
+| **做法：shared memory** | team task list 與團隊 memory 目錄。 | 共用的 session DB，外加 lineage 標記。 | parent 的工作目錄。fork 還會複製它跑完的 turn。 |
+| **做法：permission bubbling** | remote 權限請求轉成本地的審核提示。 | clarify 導向聊天平台，子代自動 deny 或 approve。 | 權限請求沿著 parent 這條線往上問。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **遺失訊息的競態：**兩個 sender 同時寫一個 inbox。用 lock 保護 read-modify-write。
 - **對等 deadlock：**agent 互相等待。把訊息排入佇列並在 turn 之間 drain，而不是用會 block 的傳送。
@@ -272,7 +272,7 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 15 章並加上：
 
@@ -289,7 +289,7 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 工具與 inbox](https://github.com/yasasbanukaofficial/claude-code)：`tools/SendMessageTool/`、`tools/TeamCreateTool/`、`utils/mailbox.ts`、`utils/teammateMailbox.ts`。
 - [Claude Code 隊友](https://github.com/yasasbanukaofficial/claude-code)：

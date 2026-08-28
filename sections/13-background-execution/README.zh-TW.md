@@ -2,34 +2,34 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 把跑很久的工作移出主 loop 去跑，稍後再回報。
+> 把耗時工作移到背景執行，主 loop 可以先繼續處理其他事。
 
-有些操作要花很久：安裝、建置、測試套件、記憶整併，或是一個跑著自己 loop 的 subagent。
+有些操作需要很長時間，例如安裝依賴、建置、執行完整測試、整理 memory，或啟動一個擁有自己 loop 的 subagent。
 
-基本的 agent loop 會等工具呼叫完成後，才再次呼叫 model。
+基本的 agent loop 會等工具呼叫完成，才進行下一次 model call。
 
-對快速的讀取來說這沒問題。但有些工作跑很久，明明可以讓它自己跑，agent 同時做別的事。這種工作讓 loop 乾等就很浪費。
+這對快速讀取沒有問題，但有些工作跑得很久，讓整個 loop 原地等待就很浪費。這類工作其實可以自己在背景跑，agent 同時繼續處理其他事項。
 
 background execution 必須：
 
-1. 決定哪些操作可以不阻塞地執行。
-2. 啟動它們，並立刻回傳一個 handle。
-3. 追蹤 running、completed、failed 和 killed 這些狀態。
-4. 稍後把一則完成訊息送回 loop 裡。
+1. 判斷哪些操作適合用非阻塞方式執行。
+2. 啟動工作後立刻回傳 handle。
+3. 追蹤 `running`、`completed`、`failed` 和 `killed` 等狀態。
+4. 工作完成後，再把通知送回 loop。
 
-少了這一層，一個慢指令就能凍結整個 agent。
+少了這一層，一個耗時指令就可能卡住整個 agent。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/13-background-execution.png)
 
-這裡有三個部件：
+背景執行由三個部分組成：
 
-1. 一個把工作移出 loop 的 starter，它會回傳一個 handle。
-2. 一個追蹤 task 狀態的 runtime。
-3. 一個 queue，會在稍後的某個 turn 注入一則完成 notification。
+1. starter：把工作移出 loop，並回傳 handle。
+2. runtime：持續追蹤 task 狀態。
+3. queue：等工作完成後，在後續 turn 注入 notification。
 
 loop 不會停下來等這件工作跑完。
 
@@ -38,7 +38,7 @@ loop 不會停下來等這件工作跑完。
 - 真正的結果稍後才會用另一則 notification 送進來。
 - 一整個 subagent 也可以在背景執行。
 
-### New: 在 loop 外啟動工作，把 notification 收進對話
+### 本章新增：在 loop 外啟動工作，把 notification 收進對話
 
 `start` 在一個 worker thread 上跑工作，並回傳一個 task id：
 
@@ -82,7 +82,7 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
 這層包裝也決定了 model 會拿到什麼。丟到背景的呼叫只是把工作啟動起來：它回傳一個 task id，結果稍後才用自己的那則事件送回來。
 跑很久的工具，名字和描述就照這樣寫（`initiate_export`，不要寫成 `export`）。model 才會把當下那則 `tool_result` 讀成收據，而不是答案。
 
-### 如何整合
+### 如何接進現有架構
 
 loop 在一個 turn 開始時，把 queue 裡累積的完成 notification 收進對話：
 
@@ -117,22 +117,22 @@ ai-agent-book 的做法是當場補：對同一個 id 補一則佔位用的 `too
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各個 agent 如何把工作移出 loop，又如何回報完成。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 吞吐量提升，也不再有閒置的等待。單純的等待不會卡住任何東西。 | 同一個登記處管 shell、終端機和 child agent，收結果和喊停都走同一條路。 |
-| **Cons** | 結果可能較晚抵達，順序也可能顛倒。runtime 要顧狀態和清理。 | 叫醒閒著的 agent 會花掉模型輪次，所以得給它一個額度。 |
-| **Why** | 一個跑很久的指令不該凍結整個 agent。 | 工作跑完要讓模型知道，而不是叫模型自己一直去問。 |
-| **How: off-loop primitive** | 背景 shell task 和背景 agent task，subprocess 繼續跑，輸出被轉導。 | 任何工具都能帶一個「丟到背景跑」的旗標，回傳一個 job id。 |
-| **How: notification** | 一則 `<task_notification>` 訊息，完成訊息走同一個共享 queue。 | 每個 job 一則通知。誰先結束誰算數，重複的會被壓下來。 |
-| **How: re-entry** | notification 在 turn 之間收進對話，分 `now`、`next`、`later` 三種優先級。 | agent 忙的話下一步就收到；閒著就叫醒它，次數有上限。 |
+| **優點** | 吞吐量提升，也不再有閒置的等待。單純的等待不會卡住任何東西。 | 同一個登記處管 shell、終端機和 child agent，收結果和喊停都走同一條路。 |
+| **限制** | 結果可能較晚抵達，順序也可能顛倒。runtime 要顧狀態和清理。 | 叫醒閒著的 agent 會花掉模型輪次，所以得給它一個額度。 |
+| **設計原因** | 一個跑很久的指令不該凍結整個 agent。 | 工作跑完要讓模型知道，而不是叫模型自己一直去問。 |
+| **做法：off-loop primitive** | 背景 shell task 和背景 agent task，subprocess 繼續跑，輸出被轉導。 | 任何工具都能帶一個「丟到背景跑」的旗標，回傳一個 job id。 |
+| **做法：notification** | 一則 `<task_notification>` 訊息，完成訊息走同一個共享 queue。 | 每個 job 一則通知。誰先結束誰算數，重複的會被壓下來。 |
+| **做法：re-entry** | notification 在 turn 之間收進對話，分 `now`、`next`、`later` 三種優先級。 | agent 忙的話下一步就收到；閒著就叫醒它，次數有上限。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **互動式提示卡住（Interactive prompt stalls）：**某個背景指令在等輸入。偵測像提示的輸出，並通知 model 去 kill 它，或以非互動方式重跑。
 - **完成訊息遺失（Lost completion）：**某個完成的 task 從沒抵達 loop。讓完成訊息走同一個共享 queue，並把 task 標記為已通知。
@@ -144,7 +144,7 @@ ai-agent-book 的做法是當場補：對同一個 id 補一則佔位用的 `too
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 把 12 帶了過來，並加上：
 
@@ -160,7 +160,7 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：

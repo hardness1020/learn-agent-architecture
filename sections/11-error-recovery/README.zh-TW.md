@@ -2,41 +2,41 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 先分類失敗，再重試、調整，或停止。
+> 先判斷錯誤類型，再決定要重試、調整，還是停止。
 
-一次 agent 執行可能橫跨很多次模型呼叫。任何一次呼叫都可能因為網路問題、過載、rate limit、輸出上限或 context overflow 而失敗。
+一次 agent 執行通常包含多次模型呼叫，其中任何一步都可能因網路問題、服務過載、rate limit、輸出上限或 context overflow 而失敗。
 
-會出錯的不只模型呼叫。有人研究過生產環境的 coding agent，把失敗分成四層：
+而且會出錯的不只有模型呼叫。針對 production coding agent 的研究，通常把失敗分成四個層級：
 
 - **API：**timeout、rate limit 和過載。
 - **tool：**指令回傳非零，或是 handler 拋出例外。
 - **context：**prompt overflow，或是 API 不收的訊息歷史。
 - **control flow：**一直重複、卻走不到任何地方的步驟。
 
-先弄清楚是哪一層，再開始數次數。順序反過來，預算就都花在重試根本救不了的錯誤上。
+先確認錯誤發生在哪一層，再決定重試次數。若順序反過來，預算很容易浪費在重試也無法解決的問題上。
 
 loop 對不同的失敗需要不同的回應：
 
-1. 對暫時性錯誤重試。
-2. 當問題出在 prompt 或輸出上限時，調整後再重試。
-3. 當錯誤無法復原時，停止。
+1. 暫時性錯誤可以重試。
+2. prompt 或輸出上限造成的問題，要先調整內容再重試。
+3. 確定無法復原時，就停止。
 
-沒有復原機制，一次暫時的 API 失敗就能終結一項長時間的任務。
+沒有復原機制，一次短暫的 API 故障就可能讓執行已久的任務前功盡棄。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/11-error-recovery.png)
 
-把模型呼叫包在一個重試輔助函式裡。這個輔助函式先分類失敗，再採取一個有界限的行動。
+最直接的做法，是用 retry helper 包住模型呼叫。它先判斷錯誤類型，再執行次數受限的復原策略。
 
 - 暫時性的狀態碼會退避後重試。
 - prompt overflow 會執行一次壓縮 callback，然後重試。
 - 反覆的過載可以觸發 fallback model。
 - 未知或不可重試的錯誤會被拋出。
 
-### New: 分類、backoff 與 retry helper
+### 本章新增：分類、backoff 與 retry helper
 
 ```python
 RETRY_STATUS = {408, 409, 429}                         # src/recovery.py; these plus any 5xx
@@ -90,7 +90,7 @@ def with_retry(call, on_overflow=None, fallback_model=None,
             sleep(retry_delay(attempt, getattr(e, "retry_after", None)))
 ```
 
-### 如何整合
+### 如何接進現有架構
 
 loop 把它的模型呼叫包起來：
 
@@ -151,22 +151,22 @@ response = recovery.with_retry(
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 Recovery 包住模型呼叫。loop 主體維持不變。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 針對性的復原路徑，救回的 run 比一概重試更多。 | 只有三條路徑要維護，crash 也留得下完整軌跡。 | 每次重試都寫進 log，session 續跑後也知道自己重試過什麼。 |
-| **Cons** | 要維護的分支與界限更多。 | 救回的 run 較少。overflow 會中止，連續三次格式錯誤也會。 | 沒有 fallback 模型。always 模式會無上限地一直重試。 |
-| **Why** | 一次暫時的 API 失敗不該終結長任務。 | 重試、把格式錯誤還給模型，其餘具名退出。 | log 才是事實，所以復原是重開一個 turn 重放。 |
-| **How: retry** | 帶退避重試 429、408、409 和 5xx，`retry-after` 優先。 | tenacity 退避 4 到 60 秒，最多 10 次。 | 失敗的 turn 收掉後發一則錯誤事件，接著開新的 turn。 |
-| **How: token handling** | 提高輸出上限、在 `max_tokens` 停止後續寫，或壓縮。 | 沒有，overflow 直接中止 run。 | 一個統一的 overflow 代碼，先修剪再摘要。 |
-| **How: model fallback** | 反覆過載（529）後改用 fallback 模型。 | 沒有。 | 沒有。重試的 turn 會重建同一個請求。 |
+| **優點** | 針對性的復原路徑，救回的 run 比一概重試更多。 | 只有三條路徑要維護，crash 也留得下完整軌跡。 | 每次重試都寫進 log，session 續跑後也知道自己重試過什麼。 |
+| **限制** | 要維護的分支與界限更多。 | 救回的 run 較少。overflow 會中止，連續三次格式錯誤也會。 | 沒有 fallback 模型。always 模式會無上限地一直重試。 |
+| **設計原因** | 一次暫時的 API 失敗不該終結長任務。 | 重試、把格式錯誤還給模型，其餘具名退出。 | log 才是事實，所以復原是重開一個 turn 重放。 |
+| **做法：retry** | 帶退避重試 429、408、409 和 5xx，`retry-after` 優先。 | tenacity 退避 4 到 60 秒，最多 10 次。 | 失敗的 turn 收掉後發一則錯誤事件，接著開新的 turn。 |
+| **做法：token handling** | 提高輸出上限、在 `max_tokens` 停止後續寫，或壓縮。 | 沒有，overflow 直接中止 run。 | 一個統一的 overflow 代碼，先修剪再摘要。 |
+| **做法：model fallback** | 反覆過載（529）後改用 fallback 模型。 | 沒有。 | 沒有。重試的 turn 會重建同一個請求。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **Retry storm：**許多 client 同時對過載重試會讓負載更糟。限制重試次數並尊重 `retry-after`。
 - **無限復原：**提高上限、續寫和壓縮都可能無限 loop。為每條路徑設界限。
@@ -180,7 +180,7 @@ Recovery 包住模型呼叫。loop 主體維持不變。
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接 10 並加入：
 
@@ -196,7 +196,7 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。

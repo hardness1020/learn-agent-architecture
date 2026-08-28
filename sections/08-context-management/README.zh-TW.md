@@ -2,31 +2,28 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 讓長時間的 session 維持在 context limit 以內。
+> 控制 context 的大小，讓長時間 session 仍能穩定運作。
 
-`messages[]` 會在執行過程中不斷成長。每個 tool 結果、assistant 回覆和 user turn 都會加入更多文字。長時間的 session 最終會碰到模型的 context limit。
+`messages[]` 會隨執行時間持續成長。每個 tool 結果、assistant 回覆和 user turn 都會增加內容，長時間 session 最後一定會逼近模型的 context limit。
 
-context management 讓 session 保持可用。它會在下一次 model call 之前，移除、以 stub 取代、持久化或摘要舊的內容。
+context management 會在下一次 model call 前整理舊內容，視情況刪除、換成 stub、保存到外部，或濃縮成摘要，讓 session 能繼續使用。
 
-當情境被填滿時：
+當 context 被填滿時：
 
-1. API 可能會拒絕該請求。
-2. 呼叫會變得更慢也更貴。
-3. 舊的、比較沒用的內容，會和當前任務的資訊互相競爭。
+1. API 可能直接拒絕請求。
+2. 每次呼叫都會變慢、變貴。
+3. 過時或低價值的內容會干擾當前任務需要的資訊。
 
-第 3 點有個名字：context rot。無關的內容越堆越多，模型找對資訊的機率就越低。
-這件事遠在 window 塞滿之前就開始了。agent 還是跑得動，只是判斷變差。
+第 3 種情況稱為 context rot。無關內容愈堆愈多，模型就愈難找到真正重要的資訊。早在 context window 塞滿之前，這件事就已經開始，agent 看起來仍能運作，但判斷品質會逐漸下降。
 
-所以壓縮不只是為了塞得下和省錢。in-context learning 比較像檢索，不太像推理。
-寫在上下文裡的某一件事，模型找得到；散在幾十輪對話裡的事實要它兜起來，就不太行。
-與其每次呼叫都讓模型重推一遍，不如先把結論寫下來，這樣便宜多了。
-所以摘要做得好，就算 window 還有空間，回答也會變好。
+因此，壓縮不只是為了省空間和成本。in-context learning 很大一部分是在檢索資訊：單一、明確的事實容易找到，散落在幾十輪對話中的線索則很難重新拼起來。
+與其讓模型每次都從頭推導，不如先整理並保留結論。摘要做得好，即使 context window 還沒滿，也能提升回答品質。
 
-沒有這一層，一旦 prompt 塞不下，長任務就會失敗。
+沒有這一層，長任務終究會因 prompt 過大或資訊過於混亂而失敗。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/08-context-management.png)
 
@@ -46,7 +43,7 @@ reactive -> 截掉開頭並重新摘要，有重試上限
 
 順序很重要。舉例來說，大型的 tool 結果應該先被持久化，之後任何 pass 才可以用 stub 取代它的本體。
 
-### New: 縮減 pass
+### 本章新增：縮減 pass
 
 ```python
 def manage(messages, summarizer=None):                 # src/context.py, run every turn
@@ -63,7 +60,7 @@ def manage(messages, summarizer=None):                 # src/context.py, run eve
 - `_auto` 保留第一個 turn 和最近的尾端，然後摘要中間的部分。
 - `summarizer=None` 在 demo 中停用了會損失資訊的摘要。
 
-### 如何整合
+### 如何接進現有架構
 
 context management 在每次 model call 之前執行：
 
@@ -74,13 +71,13 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-這一章動到的是 loop 本體。前幾章加的都是 tool 或 dispatch 行為，loop 本身不用改。但 context 縮減必須在每次 model call 之前跑，所以只能寫進 loop 裡。
+本章動到的是 loop 本體。前幾章加的都是 tool 或 dispatch 行為，loop 本身不用改。但 context 縮減必須在每次 model call 之前跑，所以只能寫進 loop 裡。
 
 loop 仍然維持同樣的不變條件：它用一個有效的 `messages[]` 呼叫模型，接著附上回應和任何 tool 結果。
 
 ### 對照：把 tool 輸出寫出去
 
-Claude Code 和這一章的 `_budget` 都是就地把過大的 tool 結果縮小，被切掉的那段就永遠沒了。
+Claude Code 和本章的 `_budget` 都是就地把過大的 tool 結果縮小，被切掉的那段就永遠沒了。
 
 deepseek-harness 從不動已經發生的事。session log 只會被附加，模型看到的 messages 只是這份 log 的一個投影。
 每次縮減都是再寫一則事件，說明要替換掉哪一段，所以 session 續跑或 fork 之後，重放出來的畫面一模一樣。
@@ -119,22 +116,22 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 各 agent 如何決定要騰出空間，以及要移除什麼。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 長 session 撐得下去，縮減成本低，存下來的輸出還能重讀。 | 沒有東西要調度、要調參，行為一眼就能看懂。 | 歷史從不被銷毀。 |
-| **Cons** | 各個 pass 要講究順序。摘要可能丟掉之後要用的細節。 | 歷史只會成長。run 拖得比預算久，window 塞爆就中止。 | log 在硬碟上只會長大，還得管鎖和 fold。 |
-| **Why** | 互動式 session 沒有固定終點，window 遲早會滿。 | 假設預算會先讓 run 結束（見第 21 章）。 | log 才是事實，所以要縮的是投影，不是歷史。 |
-| **How: trigger** | token 門檻，外加 `prompt_too_long` 的後備。 | 每則 observation，在 render 時處理。 | 每一步都量一次壓力，加上確認過的 overflow。 |
-| **How: strategy** | 先跑低成本 reducer（存檔、清成 stub），最後才摘要。 | 過長的輸出只保留頭尾，沒有壓縮。 | 先寫出去、再修剪，最後一則摘要事件。 |
-| **How: budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 | 依模型換算比例：0.8 觸發壓縮，保留 0.16。 |
+| **優點** | 長 session 撐得下去，縮減成本低，存下來的輸出還能重讀。 | 沒有東西要調度、要調參，行為一眼就能看懂。 | 歷史從不被銷毀。 |
+| **限制** | 各個 pass 要講究順序。摘要可能丟掉之後要用的細節。 | 歷史只會成長。run 拖得比預算久，window 塞爆就中止。 | log 在硬碟上只會長大，還得管鎖和 fold。 |
+| **設計原因** | 互動式 session 沒有固定終點，window 遲早會滿。 | 假設預算會先讓 run 結束（見第 21 章）。 | log 才是事實，所以要縮的是投影，不是歷史。 |
+| **做法：trigger** | token 門檻，外加 `prompt_too_long` 的後備。 | 每則 observation，在 render 時處理。 | 每一步都量一次壓力，加上確認過的 overflow。 |
+| **做法：strategy** | 先跑低成本 reducer（存檔、清成 stub），最後才摘要。 | 過長的輸出只保留頭尾，沒有壓縮。 | 先寫出去、再修剪，最後一則摘要事件。 |
+| **做法：budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 | 依模型換算比例：0.8 觸發壓縮，保留 0.16。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **摘要漏掉需要的細節：**持久化完整輸出，並在需要時重新讀取檔案。
 - **壓縮反覆失敗：**使用 retry 上限或斷路器。
@@ -147,7 +144,7 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 沿用 07 並加上：
 
@@ -164,7 +161,7 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`services/compact/autoCompact.ts`、`microCompact.ts`、`timeBasedMCConfig.ts`、
   `compact.ts`、`utils/toolResultStorage.ts`、`query.ts`、`query/tokenBudget.ts`。

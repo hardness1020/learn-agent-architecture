@@ -2,38 +2,38 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 你看不見的東西修不好，沒人記下來的 run 也沒辦法評分。
+> 沒有完整紀錄，就無法重現問題、控制成本，也無法可靠評估 agent。
 
-一個 agent 無人看管地運行、產生副作用，還花錢。一次模型呼叫是個黑盒子：它燒 token，並觸發真實的動作。
+agent 會在無人看管的情況下持續執行、產生副作用，並消耗成本。單看一次模型呼叫，就像面對黑盒子：token 花掉了，真實動作也發生了，卻不知道中間經過什麼。
 
-沒有 instrumentation，你連最基本的問題都答不出來。它做了什麼。某個工具失敗了幾次。這個 session 花了多少錢。
+沒有 instrumentation，連最基本的問題都無法回答：它做了什麼？某個工具失敗幾次？這個 session 花了多少錢？
 
-這一章負責的是紀錄。它把每一步做了什麼、花了多少錢寫下來，而且寫得夠乾淨，可以存起來。
+本章專注在記錄執行過程，把每一步做了什麼、花了多少成本整理成可保存、可查詢的資料。
 
-一次改動讓品質變好還是變差，那是另一件事。那件事由第 23 章負責，而它吃的就是這一章記下來的東西。
+至於某次修改究竟讓品質變好還是變差，會在第 23 章處理；評估所需的素材，正是本章收集的紀錄。
 
-紀錄不做，成本暴衝每次都是意外。bug 回報一份都重現不了。eval 集也拿不到任何真實素材。
+如果沒有這些紀錄，成本突然上升時找不到原因，bug 無法重現，eval dataset 也缺少真實案例可用。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/20-observability.png)
 
-兩條可分離的 pipeline，都不碰 loop 的控制流。
+這裡有兩條彼此獨立的 pipeline，而且都不改變 loop 的控制流程。
 
-telemetry 直接在 loop 裡跑：每一步都呼叫一次 logger，呼叫完不等結果（fire and forget）。
+telemetry 會在 loop 的每一步呼叫 logger，送出事件後不等待結果，也就是 fire and forget。
 
-event 的去處叫 sink，可能是終端機、檔案，或 Datadog 這類 backend。event 先排在佇列裡，等某個 sink 接上，再經過採樣、洗掉敏感欄位，最後送給每一個 sink。
+event 的接收端稱為 sink，可以是終端機、檔案，或 Datadog 這類 backend。event 會先進入佇列，等 sink 接上後，再經過採樣與敏感欄位清理，最後送往各個 sink。
 
-evaluation 離線跑，用的是它自己的 task 集（第 23 章）。那組 task 就是拿這一章記下來的東西做出來的。
+evaluation 離線跑，用的是它自己的 task 集（第 23 章）。那組 task 就是拿本章記下來的東西做出來的。
 
 - `emit` 永不阻塞、永不拋例外，所以一次 logging 故障無法卡住或弄垮 loop（第 1 章）。
 - event 會先在佇列裡緩衝，等某個 sink 接上再一次送出，所以 loop 在 telemetry 就緒之前就能 log。
 - 採樣依速率丟棄 event；scrub 只保留白名單欄位，所以程式碼與路徑永不外洩。
 - 成本按模型累加成一個 USD 總額，即時顯示並在退出時顯示。
 
-### New: fire-and-forget 事件記錄
+### 本章新增：fire-and-forget 事件記錄
 
 `telemetry.py` 發出 event。event 先排在佇列裡，等某個 sink 接上，再採樣、scrub，送給每一個 sink。`emit` 永不拋例外：
 
@@ -59,7 +59,7 @@ def _deliver(self, name, meta):
 - `scrub` 只保留 `SAFE_FIELDS`，所以一個未知安全的值（程式碼、檔案路徑、prompt）永遠不會抵達 backend。
 - 一個拋例外的 sink 會被吞掉，所以一個壞掉的 backend 無法卡住或弄垮 loop。
 
-### New: 每個模型的成本與離線 eval
+### 本章新增：每個模型的成本與離線 eval
 
 成本按模型累加成一個滾動的 USD 總額：
 
@@ -78,7 +78,7 @@ def add(self, model, input_tokens, output_tokens):    # src/telemetry.py
 這裡的 `run_eval` 是最小規模的 eval。它把一組固定的 task 集重播到候選 build 上，數過了幾題，回傳一個比率。
 第 23 章在同一個入口下面補上環境、模擬使用者和重複執行，也講清楚為什麼比率小幅下滑通常只是雜訊。
 
-### 如何整合
+### 如何接進現有架構
 
 demo 把 telemetry 掛在 model wrapper 上。loop 不變：
 
@@ -121,7 +121,7 @@ span 長什麼樣子，由兩套標準講定，你不用去猜 backend 想吃什
 照這套名稱把點埋一次就好，之後換 backend 只是改設定，不用重寫。
 
 匯出跟 `emit` 守同一條規矩：留在熱路徑之外。span 先進佇列，由背景 worker 分批送出，這樣 collector 再慢，run 也一點都不受影響。
-這一章的 `emit` 就是它的扁平版；在同一批 event 上補一個 trace id 和一個 parent id，樹就出來了。
+本章的 `emit` 就是它的扁平版；在同一批 event 上補一個 trace id 和一個 parent id，樹就出來了。
 
 **非線性的成本與每任務上限：**成本算的是模型讀進去多少 token，而每一輪都要把整段對話重送一次。
 所以第二輪回傳的工具結果，第三、第四、第五輪還要再付一次錢。
@@ -148,22 +148,22 @@ context 裡多出來的任何東西，後面每一輪都得再付一遍，總額
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 每個 agent 如何發出 telemetry、追蹤花費，以及怎麼餵養 eval 集。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | 低成本又安全地換來豐富的正式環境可見度。 | crash 掉的 run 也留得下檔案。 | 不用另外埋點：模型看得到的，log 裡就有。 |
-| **Cons** | 只說發生了什麼，答案好不好看不出來。 | 正式環境 telemetry 幾乎沒有。 | 沒附任何脫敏規則。送出去可能會漏，也可能重複。 |
-| **Why** | 正式環境得盯住當機和成本，又不能碰 loop。 | 品質靠離線 benchmark 評分，完整紀錄最重要。 | session log 本來就是紀錄，直接把它送出去就好。 |
-| **How: telemetry** | event 先排隊，等 sink 接上再採樣、scrub。 | 每趟 run 一個軌跡檔，每一步都存。 | 每一則 session 事件都經過脫敏那一關再鏡射出去。 |
-| **How: cost tracking** | 每模型 token 按定價滾成一個 session 總額。 | 逐次計價，彙總成 run 與全域總額。 | 重放整份 log 算出 token 數，從不換算成錢。 |
-| **How: eval feed** | 原始碼中沒有；trace 脫敏後變成 regression 案例。 | 存下來的軌跡餵給 benchmark runner。 | 錄下來的 run 不用金鑰就能重放，當成固定樣本。 |
+| **優點** | 低成本又安全地換來豐富的正式環境可見度。 | crash 掉的 run 也留得下檔案。 | 不用另外埋點：模型看得到的，log 裡就有。 |
+| **限制** | 只說發生了什麼，答案好不好看不出來。 | 正式環境 telemetry 幾乎沒有。 | 沒附任何脫敏規則。送出去可能會漏，也可能重複。 |
+| **設計原因** | 正式環境得盯住當機和成本，又不能碰 loop。 | 品質靠離線 benchmark 評分，完整紀錄最重要。 | session log 本來就是紀錄，直接把它送出去就好。 |
+| **做法：telemetry** | event 先排隊，等 sink 接上再採樣、scrub。 | 每趟 run 一個軌跡檔，每一步都存。 | 每一則 session 事件都經過脫敏那一關再鏡射出去。 |
+| **做法：cost tracking** | 每模型 token 按定價滾成一個 session 總額。 | 逐次計價，彙總成 run 與全域總額。 | 重放整份 log 算出 token 數，從不換算成錢。 |
+| **做法：eval feed** | 原始碼中沒有；trace 脫敏後變成 regression 案例。 | 存下來的軌跡餵給 benchmark runner。 | 錄下來的 run 不用金鑰就能重放，當成固定樣本。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **telemetry 落在熱路徑上：**一個會阻塞或拋例外的 logging 呼叫會卡住 loop（第 1 章）。一個要等網路回應的 span exporter 也一樣。
   緩解：呼叫完不等結果，搭配 pre-sink 佇列、每 sink killswitch，以及背景 worker 分批匯出。
@@ -178,7 +178,7 @@ context 裡多出來的任何東西，後面每一輪都得再付一遍，總額
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 19 章並加上：
 
@@ -195,7 +195,7 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code analytics](https://github.com/yasasbanukaofficial/claude-code)：
   `services/analytics/index.ts`（queue + `logEvent`）、`sink.ts`、`datadog.ts`、`firstPartyEventLogger.ts`、`sinkKillswitch.ts`、`shouldSampleEvent`。

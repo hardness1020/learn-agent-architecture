@@ -2,24 +2,21 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 在沒有使用者 prompt 的情況下跑 loop：閒置時掃描看板，認領一個就緒的 task，然後動工。
+> 不必等待使用者下指令，agent 閒置時也能主動認領 task 並開始工作。
 
-自主（autonomy）就是第 1 章的 agent loop，在沒有使用者 prompt 觸發每一輪的情況下持續運轉。
+autonomy 指的是：即使沒有使用者 prompt 觸發新一輪，第 1 章的 agent loop 仍能持續找到並執行工作。
 
-要 spawn 一支團隊，最直覺的設計是有一位 lead 把下一個 task 逐一交給每個 worker。
+最直覺的團隊設計，是由 lead 把下一個 task 逐一分配給各個 worker。
 
-但這樣無法擴展。十個尚未認領的 task 就意味著十次手動指派，lead 也因此成為瓶頸。
+但這種集中派工方式不容易擴展。十個待處理 task 就需要十次指派，lead 很快會成為瓶頸。
 
-一個 worker 一做完就閒置，也浪費了它剛載入的 context。
+worker 完成一項工作後如果只能等待下一次派工，剛建立的 context 也無法繼續利用。
 
-解法是自我組織，而不是集中指派。
+另一種做法，是讓 worker 自我組織並主動認領工作。
 
-集中指派也是一種真實可行的設計，而且多數已發表的 multi-agent 研究講的都是它。
-在 manager 模式裡，每個子 agent 都註冊成一個 tool，由一位 manager 把每個 subtask 發出去。
-manager 手上有完整的計畫，所以它能排順序、砍掉重複的 task，也能提早收工。
-代價是每個 task 它都要經手兩次：一次發出去，一次收結果。
-兩種設計付的代價不一樣。manager 給你一份全域排序，但每個 task 都得等它排到。
-看板給你吞吐量，但得靠 lock，因為認領會過期。這一章走的是看板這條路。
+集中指派本身仍是可行設計，而且多數已發表的 multi-agent 研究講的也是 manager 模式：每個子 agent 都註冊成 tool，由 manager 分派 subtask。manager 掌握完整計畫，因此能安排順序、移除重複工作，也能提早結束整趟執行；代價是每個 task 都要經過 manager 發出與回收兩次。
+
+兩種設計交換的是不同能力。manager 提供全域排序，但每個 task 都要排隊等待；共享看板提高吞吐量，但得靠 lock，因為認領會過期。本章採用共享看板的做法。
 
 自主機制必須讓一個閒置的 agent 能夠：
 
@@ -28,11 +25,11 @@ manager 手上有完整的計畫，所以它能排順序、砍掉重複的 task�
 3. 認領其中一個，且不與其他閒置 agent 相互競爭。
 4. 針對認領到的 task 重新進入 loop，並持續重複直到看板清空。
 
-少了這一環，每個 agent 都是傀儡。它必須等待使用者或 lead 推來下一個 prompt，於是吞吐量被卡在派工那一端出 prompt 的速度上。
+少了 autonomy，每個 agent 都只能被動等待使用者或 lead 送來下一個 prompt，整體吞吐量也會受限於派工速度。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/18-autonomy.png)
 
@@ -53,7 +50,7 @@ poll 會把兩個 channel 裡的東西都收進來：一個定向的 inbox（第
 
 shutdown 請求與其確認就是第 17 章的 protocol，所以停止走的是 handshake，不是強制中止。
 
-### New: 閒置 poll
+### 本章新增：閒置 poll
 
 `autonomy.py` 加上 outer loop 與一次 poll pass。`next_action` 把 inbox 收完一次，然後依優先序回傳它找到的第一樣東西：
 
@@ -114,7 +111,7 @@ def claim(self, tid, owner):                           # src/tasks.py, section 1
 - 被阻擋的 task 在這裡同樣會被拒絕，所以沒有 agent 會認領相依項尚未 `completed` 的工作。
 - 這是唯一一處兩條執行緒爭用共享狀態的地方。poll 的其餘部分都是本地的。
 
-### 如何整合
+### 如何接進現有架構
 
 outer loop 從外部包住 `run_turn`，所以 loop 與 subagent 路徑都不變：
 
@@ -183,22 +180,22 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 一個閒置 agent 如何找到並認領屬於自己的工作。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 沒有派工者瓶頸。watcher 連別處建立的 task 也會接手。 | 無人看管的執行結果可預期，續跑狀態也存得住。 |
-| **Cons** | 兩個閒置 agent 可能盯上同一個 task，得靠一把鎖裁定。 | 一個 agent 只顧一個 goal。做完了沒，也是模型自己判斷。 |
-| **Why** | lead 逐一派 task 會成為瓶頸，所以讓 worker 自我組織。 | 自主不是一種模式，而是一個有預算的權限等級。 |
-| **How: idle behavior** | 500ms 一輪的 poll：先查 shutdown，再看未讀訊息，接著認領。 | 整個 agent 閒下來時，先訂走下一輪，再排一則 prompt。 |
-| **How: work claim** | 在鎖之下寫入沒被阻擋的 task 的擁有權，只有一個人搶得到。 | 拿 goal 當下的版本號去訂下一輪，版本對不上就訂不到。 |
-| **How: self-organization** | worker 從看板拉工作（第 12 章）。lead 只做整合，不派工。 | 沒有看板。agent 續跑自己的 goal，往外開的量也有上限。 |
+| **優點** | 沒有派工者瓶頸。watcher 連別處建立的 task 也會接手。 | 無人看管的執行結果可預期，續跑狀態也存得住。 |
+| **限制** | 兩個閒置 agent 可能盯上同一個 task，得靠一把鎖裁定。 | 一個 agent 只顧一個 goal。做完了沒，也是模型自己判斷。 |
+| **設計原因** | lead 逐一派 task 會成為瓶頸，所以讓 worker 自我組織。 | 自主不是一種模式，而是一個有預算的權限等級。 |
+| **做法：idle behavior** | 500ms 一輪的 poll：先查 shutdown，再看未讀訊息，接著認領。 | 整個 agent 閒下來時，先訂走下一輪，再排一則 prompt。 |
+| **做法：work claim** | 在鎖之下寫入沒被阻擋的 task 的擁有權，只有一個人搶得到。 | 拿 goal 當下的版本號去訂下一輪，版本對不上就訂不到。 |
+| **做法：self-organization** | worker 從看板拉工作（第 12 章）。lead 只做整合，不派工。 | 沒有看板。agent 續跑自己的 goal，往外開的量也有上限。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **認領競爭（Claim race）：**兩個 agent 把一個 task 讀成無人擁有並雙雙認領，丟掉了其中一個 agent 的工作。在一個 file lock 內做認領，檢查與寫入一步做完，中間插不進別的 agent（第 12 章）。
 - **被閒聊餓死（Starvation by chatter）：**peer 閒聊淹沒了一個 shutdown 請求，於是一個該停止的 agent 繼續 poll。在一般訊息之前先檢查 shutdown（第 16 章）。
@@ -211,7 +208,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 17 章並加上：
 
@@ -234,7 +231,7 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code autonomy](https://github.com/yasasbanukaofficial/claude-code)：
   `utils/swarm/inProcessRunner.ts`（`runInProcessTeammate`、`waitForNextPromptOrShutdown`、`findAvailableTask`、`tryClaimNextTask`、`sendIdleNotification`）。

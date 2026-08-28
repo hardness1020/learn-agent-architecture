@@ -2,32 +2,30 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 給訊息一套約定：行動前先審核，停止前先確認。
+> 不只傳遞訊息，還要定義請求、回覆、核准與停止的規則。
 
-協調（第 16 章）給了 agent 一個管道，但管道只搬運文字。文字本身沒有規則：分不出請求和回覆，也沒辦法要求對方先回應才行動。
+第 16 章的 coordination 提供了溝通管道，但管道只能傳遞文字。若沒有額外規則，系統無法分辨請求與回覆，也不能保證 agent 會先等待核准再行動。
 
-protocol 是疊在管道之上的約定規則：一則請求與其回覆長什麼樣子，以及一則回覆如何對應到它所回答的請求。
+protocol 是建立在通訊管道上的共同約定，用來定義請求與回覆的格式，以及每則回覆要如何對應到原始請求。
 
-有兩種情況最需要這套約定。一種是 lead 在隊友編輯到一半時把它強制停掉，留下一個寫到一半的檔案和一筆開著的 task 記錄。
+這套規則在兩種情況特別重要。第一種是 lead 強制停止正在編輯的隊友，留下只寫到一半的檔案和未關閉的 task。第二種是隊友沒有先取得核准，就直接執行高風險重構，等做完才回報。
 
-另一種是隊友沒先問過，就直接跑一個有風險的重構：先做了，才回報。
-
-兩種情況要的其實是同一件事：一方送出請求，另一方回覆，一個 id 把它們綁在一起。
+兩種情況需要的核心機制相同：一方送出請求，另一方明確回覆，再用同一個 id 把兩者關聯起來。
 
 protocol 必須：
 
-1. 給請求和回覆定好固定的格式。
-2. 把每則回覆對應到它所回答的請求。
-3. 在任何工作開始前先為有風險的計畫設閘門。
-4. 停止一個 agent 而不遺失進行中的工作。
-5. 一群 worker 裡有人先做完，就把整批停掉，而且這個競態只結算一次。
-6. 接得上團隊外面的 agent，跨過信任邊界。
+1. 為請求與回覆定義固定格式。
+2. 將每則回覆對應到正確的原始請求。
+3. 在高風險工作開始前先取得核准。
+4. 停止 agent 時保留尚未完成的工作。
+5. 多個 worker 競速時，第一個完成者能結束整批工作，而且只結算一次。
+6. 與團隊外部的 agent 溝通時，仍能跨越信任邊界安全運作。
 
-少了這一層，協調就只是傳來傳去的閒聊：有風險的動作沒有閘門擋著，停止不會乾淨收尾，收到回覆也對不上它在回答哪個請求。
+少了 protocol，coordination 就只是 agent 彼此傳文字。高風險動作沒有核准機制，停止時無法完整收尾，收到回覆後也不知道它對應哪個請求。
 
 ---
 
-## 機制
+## 核心機制
 
 ![機制圖](assets/17-protocols.png)
 
@@ -45,7 +43,7 @@ shutdown 與 plan 這兩個流程一樣，只是方向相反：shutdown 是 lead
 
 審核的回覆裡也可以附上這件工作要用哪種權限模式（第 3 章），核准和模式一次送到。
 
-### New: protocol 追蹤器
+### 本章新增：protocol 追蹤器
 
 `protocols.py` 是每個 agent 在第 16 章管道之上的一個 `Protocol`。一筆請求鑄造一個 correlation id 並把自己記為 pending；回覆把那個 id 回傳：
 
@@ -98,7 +96,7 @@ def resolve(self, msg):                                # src/protocols.py
 - `protocol_tools` 把 handshake 的發起作為工具暴露出來（`ExitPlanMode`、`ApprovePlan`、`StopTeammate`）。
 - 確認一個 shutdown 不是一個工具；隊友的 `run_teammate` loop 會自動回覆（harness 驅動的接收）。
 
-### New: 隊友 loop
+### 本章新增：隊友 loop
 
 `run_teammate` 是第 16 章的 `serve_mailbox`，把 shutdown handshake 折了進來。被 spawn 的隊友現在會因為一筆請求而停止，而不是隨它的 daemon thread 一起死掉：
 
@@ -122,7 +120,7 @@ def run_teammate(team, me, lead, work, *, poll=0.05, max_idle_polls=None):   # s
 - loop 回傳 `"shutdown"`，所以進行 spawn 的 runtime（第 13 章）能回報這次乾淨的停止。
 - 第 18 章再加一個分支：inbox 為空時，從一塊共用看板認領一個 task。
 
-### 如何整合
+### 如何接進現有架構
 
 demo 跑一個主 agent。lead 在一個 turn 裡 spawn 一個隊友、委派、然後停止它；隊友在自己的 thread 上確認：
 
@@ -169,11 +167,11 @@ A2A 就是為這種情況設計的 protocol。它保留請求配回覆這個核�
 - **Agent Card discovery：**每個 agent 在一個固定的 URL 上放一份文件：名字、會做什麼、endpoint，還有要怎麼認證。
   呼叫端先讀這張卡，再決定要送什麼過去。團隊裡的名單在 spawn 時就拿到了；跨出去就得自己去抓。
 - **Task lifecycle：**一次遠端呼叫是一個帶 id 的 task，狀態有 `submitted`、`working`、`input-required`、`completed`、`failed`。呼叫端拿這個 id 去輪詢或訂閱。
-  `input-required` 正好是這一章沒有名字的那個狀態：對面停下來要更多資訊，而 task 在等的期間還活著。
+  `input-required` 正好是本章沒有名字的那個狀態：對面停下來要更多資訊，而 task 在等的期間還活著。
 - **Opaque artifacts：**結果是以 artifact 回傳的：檔案、文字、結構化片段。對方的 trajectory 不會回傳。
   呼叫端看不到那邊是怎麼做出來的，過得來的只有結果。
 
-**請求的狀態和 task 的狀態：**兩套做法記的東西不一樣。這一章記的是一次請求：從 `pending` 走到 `approved` 或 `rejected`。
+**請求的狀態和 task 的狀態：**兩套做法記的東西不一樣。本章記的是一次請求：從 `pending` 走到 `approved` 或 `rejected`。
 A2A 記的是一個 task：`submitted`、`working`、`input-required`、`completed`、`failed`。
 差別在這筆記錄活多久。請求的記錄跟著那次來回一起結束。
 task 的 id 之後還查得到：回覆收到之後、中途停下來要資訊之後、連線斷掉又接回來之後，都還查得到。
@@ -181,22 +179,22 @@ task 的 id 之後還查得到：回覆收到之後、中途停下來要資訊�
 
 ---
 
-## 各系統做法
+## 不同系統怎麼做
 
 一種設計如何定出請求的格式、為計畫設閘門，並乾淨地停止 agent。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 每一次停止都經過確認，有風險的計畫都設了閘門。 | 只要照公開協定講話，任何 client 或 server 都能接上來。 |
-| **Cons** | 每次 handshake 都要付出往返次數和 protocol 狀態。 | 輸出要等到定案才送出，中途的進度看不到。 |
-| **Why** | 編輯到一半被強制停掉，會留下寫一半的檔案。有風險的計畫也該先審核。 | 對面是一個你未必擁有的 process，所以用公開契約講話。 |
-| **How: message shape** | 在 `type` 上區分的 typed union，`request_id` 對應每則回覆。 | 用 session id 分辨的 JSON-RPC 方法，一個 session 同時只跑一個 prompt。 |
-| **How: plan approval** | 隊友請求後等待，lead 的回覆帶著裁決、feedback 和權限模式。 | 計畫送到人面前。被打回來時，會以帶著意見的失敗呼叫回傳。 |
-| **How: shutdown** | lead 先請求，隊友確認後才 kill。 | 先取消、再關掉輸入、再送 signal、最後強殺，每一階都有時限。 |
+| **優點** | 每一次停止都經過確認，有風險的計畫都設了閘門。 | 只要照公開協定講話，任何 client 或 server 都能接上來。 |
+| **限制** | 每次 handshake 都要付出往返次數和 protocol 狀態。 | 輸出要等到定案才送出，中途的進度看不到。 |
+| **設計原因** | 編輯到一半被強制停掉，會留下寫一半的檔案。有風險的計畫也該先審核。 | 對面是一個你未必擁有的 process，所以用公開契約講話。 |
+| **做法：message shape** | 在 `type` 上區分的 typed union，`request_id` 對應每則回覆。 | 用 session id 分辨的 JSON-RPC 方法，一個 session 同時只跑一個 prompt。 |
+| **做法：plan approval** | 隊友請求後等待，lead 的回覆帶著裁決、feedback 和權限模式。 | 計畫送到人面前。被打回來時，會以帶著意見的失敗呼叫回傳。 |
+| **做法：shutdown** | lead 先請求，隊友確認後才 kill。 | 先取消、再關掉輸入、再送 signal、最後強殺，每一階都有時限。 |
 
 ---
 
-## 哪裡會出錯
+## 常見問題
 
 - **用硬 kill 取代 handshake：**殺掉隊友的 thread 會丟掉進行中的工作，並讓它的 task 記錄變孤兒。改用先請求再確認、並把 task 標記為 `notified` 的流程。
 - **孤兒請求：**一則永遠不到的回覆會讓一筆請求永遠停在 `pending`，於是 sender 一直 block。加上一個 timeout 或閒置檢查，把卡住的請求浮上來。
@@ -212,7 +210,7 @@ task 的 id 之後還查得到：回覆收到之後、中途停下來要資訊�
 
 ---
 
-## 可執行程式
+## 動手跑跑看
 
 [`src/`](src/) 承接第 16 章並加上：
 
@@ -229,7 +227,7 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 
 ---
 
-## 出處
+## 參考資料
 
 - [Claude Code 的 protocol 格式](https://github.com/yasasbanukaofficial/claude-code)：`tools/SendMessageTool/SendMessageTool.ts`、`utils/teammateMailbox.ts`。
 - [Claude Code plan 與 stop](https://github.com/yasasbanukaofficial/claude-code)：`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`、`tasks/stopTask.ts`、`coordinator/coordinatorMode.ts`。
