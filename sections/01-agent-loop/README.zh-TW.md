@@ -86,7 +86,7 @@ for user_text in turns:                              # the outer loop: one itera
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **優點** | 能串流進度、把關副作用，還能平行執行工具。 | loop 很小，容易閱讀與稽核。 | loop 可以整個換掉，每個階段都能攔截，log 可以重放。 |
-| **限制** | loop 包在一個更大的 runtime 裡，不能單獨拿出來用。 | 無法把關副作用、串流進度，或平行執行工具。 | 活動零件最多。得先懂 turn、step、inbox 這套詞彙。 |
+| **限制** | loop 包在一個更大的 runtime 裡。 | 無法把關副作用、串流進度，或平行執行工具。 | 活動零件最多。得先懂 turn、step、inbox 這套詞彙。 |
 | **設計原因** | 核心分支保持不變，功能都加在外圍。 | 小 loop 本身就是目的。偵測任務是否完成的是環境，不是模型。 | loop 就是眾多 plugin 裡的一個。 |
 | **做法：loop driver** | 一個 async generator。每個工具透過同一份契約接進 dispatch。 | 一個 while loop。每一步跟模型要一道指令，再執行。 | 一個可換掉的 plugin，跑在一份 durable 事件 log 上。 |
 | **做法：stop signal** | `stop_reason: end_turn`。 | 由環境偵測提交標記，附加一則 `role: "exit"` 訊息。 | 沒有待處理項目、檢查點沒有攔截，或某個 tool result 直接結束這一輪。 |

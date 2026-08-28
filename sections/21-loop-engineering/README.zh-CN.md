@@ -247,7 +247,7 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [ACE](https://arxiv.org/abs/2510.04618)：用稳定的 id 增量修改 context 单项，而不是整段 prompt 重写。
 - [Lin et al.](https://arxiv.org/abs/2605.30621)：harness 更新和 harness 收益分开量，用换 model 的方式把两者分辨开来。
 - [AHE](https://arxiv.org/abs/2604.25850) 与 [Self-Harness](https://arxiv.org/abs/2606.09498)：harness 自我修改时的变更契约与受限候选空间。
-- [Claude Code](https://code.claude.com/docs)：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依据 tool schema 与文件记载的行为描述，非 source backup。
+- [Claude Code](https://code.claude.com/docs)：`/loop`、`ScheduleWakeup`、`Workflow` schema。依据 tool schema 与文件记载的行为描述，非 source backup。
 - [Hermes Agent 源代码](https://github.com/NousResearch/hermes-agent)：
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 与 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。

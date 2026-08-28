@@ -75,7 +75,7 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 - `channels` 把 channel 名稱對應到一個送信的 callable（這裡是 print；真正的 adapter 是第 19 章的事）。
   task 指定 channel；driver 擁有這張對照表。兩邊互不知道對方的細節。
-- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是給排程任務的約定：模型跑完發現沒有新東西值得通知使用者（例如巡檢一切正常），就用這個開頭。driver 手上仍有完整文字，要留檔照樣可以。
+- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是給排程任務的約定：模型跑完發現沒有新東西值得通知使用者（例如這次輪詢沒看到任何變化），就用這個開頭。driver 手上仍有完整文字，要留檔照樣可以。
 - 沒有 channel 表示答案留在本地，也就是加入投遞之前的行為。
 - `bool` 回傳值讓 driver 可以改走別條路（demo 會印出未投遞的答案），而不是無聲地丟掉答案。
 
@@ -134,10 +134,10 @@ for task in sched.drain():                            # src/demo.py · between t
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **優點** | 簡單又私密。durable 的 schedule 能在重啟後存活。 | 不需要託管服務，無人看管也能 fire。 | 提醒跟著 session 一起重放。錯過的幾次會併成一個 turn。 |
-| **限制** | 只在 session 運行時才會 tick，remote trigger 還要託管服務。 | gateway 得一直跑，共享 job store 還要靠鎖。 | 只能固定間隔。session 關掉就什麼都不會 fire。 |
+| **限制** | 只在 session 運行時才會 tick，remote trigger 還要託管服務。 | 需要一個 gateway，還要用鎖擋掉重複 fire。 | 只能固定間隔。session 關掉就什麼都不會 fire。 |
 | **設計原因** | 假設本地有 session 開著。 | gateway 是 server process，無人看管也能 fire。 | 提醒就是對話狀態，所以歸 session log 管。 |
 | **做法：trigger** | Cron、sleep 和 remote trigger，由 ticker 定期檢查。 | gateway tick 上的 cron，跟著使用者的時區走。 | 延遲多久後、某個時間點，或固定間隔，最快五分鐘一次。 |
-| **做法：durability** | session 狀態，或存成一個帶鎖的 JSON 檔。 | CLI 和 gateway 共享一個 JSON job store，認領是原子的。 | 寫進 session log 的事件。fork 保留歷史，但不帶走提醒。 |
+| **做法：durability** | session 狀態，或存成一個帶鎖的 JSON 檔。 | 共享一個 JSON job store，認領是原子的。 | 寫進 session log 的事件。fork 保留歷史，但不帶走提醒。 |
 | **做法：wakeup** | fire 出來的 prompt 進 queue，在 turn 之間執行。 | 到點的 job 平行跑，輸出投遞到聊天平台。 | 等 agent 完全閒下來，才排一個 turn。至少送達一次。 |
 
 ---
@@ -145,7 +145,7 @@ for task in sched.drain():                            # src/demo.py · between t
 ## 常見問題
 
 - **重複 fire（Double fire）：**一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
-- **許多 schedule 一起 fire：**把每個週期性 task 的時間錯開一點。錯開量從 task 本身算出來，每次都一樣。
+- **許多 schedule 一起 fire：**給週期性 task 加上決定性的 jitter，把觸發時間錯開。
 - **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
 - **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
 - **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。

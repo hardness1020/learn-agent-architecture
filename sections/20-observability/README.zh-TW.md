@@ -209,5 +209,6 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
 - [OpenTelemetry tracing](https://opentelemetry.io/docs/specs/otel/trace/api/)：span 本身、parent 連結、時間、狀態與 attribute。
 - [OpenInference](https://github.com/Arize-ai/openinference)：在 span 上替 LLM 與工具 attribute 命名的語意慣例。
 - evaluation 不在 Claude Code 這份原始碼裡，在這個 repo 由第 23 章負責。保留的 task 集與 LLM-as-judge 仍以重建與一般做法描述。
-- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py`、`models/__init__.py`、`run/benchmarks/swebench.py`、`run/utilities/inspector.py`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：
+  `agents/default.py` 的 `serialize` 和 `save`、`models/__init__.py` 的 `GLOBAL_MODEL_STATS`、`run/benchmarks/swebench.py`、`run/utilities/inspector.py`。
 - 章節定位：[learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code)。

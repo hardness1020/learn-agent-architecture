@@ -242,11 +242,11 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **優點** | 隊友能直接交談，檔案 inbox 還能跨 process 或機器。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
+| **優點** | 隊友能直接交談，檔案 inbox 還能跨 process。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
 | **限制** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
 | **設計原因** | 隊友彼此對等，需要 inbox 交談，也需要一條送回人的路。 | 協調維持 parent 對 child。 | 協調就是歸屬關係，每個子代只有一個 parent。 |
 | **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，長命的那種會常駐。 |
-| **做法：channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway RPC。 | 只有 parent 對 child。子代用 report 工具回話。 |
+| **做法：channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway 呼叫。 | 只有 parent 對 child。子代用 report 工具回話。 |
 | **做法：shared memory** | team task list 與團隊 memory 目錄。 | 共用的 session DB，外加 lineage 標記。 | parent 的工作目錄。fork 還會複製它跑完的 turn。 |
 | **做法：permission bubbling** | remote 權限請求轉成本地的審核提示。 | clarify 導向聊天平台，子代自動 deny 或 approve。 | 權限請求沿著 parent 這條線往上問。 |
 

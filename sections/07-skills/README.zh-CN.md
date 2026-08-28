@@ -178,7 +178,7 @@ skill 是这个 repo 第一次碰到 progressive disclosure 的地方；照书�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **优点** | catalog 有预算上限。skill 能 fork，还能限制 tool。 | curator 会整并新 skill、归档过期的。 | catalog 放在对话历史里，session 续跑后照样在，内容一变就换新的。 |
+| **优点** | catalog 有预算上限。skill 能 fork，还能限制 tool。 | curator 会整并新 skill、归档过期的。 | catalog 放在对话历史里，内容一变就换新的。 |
 | **限制** | 描述太含糊，模型就不会去加载。 | 自动改动需要钉选和暂存批准来把关。 | 每次换掉 catalog 都会往历史里多塞消息。 |
 | **设计原因** | skill 还要 fork、还要限制 tool，单纯读档不够用。 | 加载只是一半，store 本身还要能成长、能清理过时内容。 | session 跑到一半，skill 就可能变了。 |
 | **做法：skill format** | `SKILL.md` 文件夹，frontmatter 还能限制可用的 tool。 | 同样的形式，依分类文件夹整理。 | 一个文件夹或一个扁平文件。谁能调用写在 frontmatter。 |
