@@ -1,6 +1,6 @@
 # 22 · Graph engineering
 
-**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > Stop asking the model what runs next. Encode the route you already know, and spend the model only where judgment is needed.
 

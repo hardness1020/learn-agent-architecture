@@ -1,6 +1,6 @@
 # 20 · Observability & evaluation
 
-**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > You cannot fix what you cannot see, and you cannot grade a run nobody recorded.
 

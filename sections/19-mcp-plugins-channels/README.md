@@ -1,6 +1,6 @@
 # 19 · MCP / plugins / channels
 
-**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > Not enough capability? Plug in more. The harness reaches the world through one standard protocol.
 
