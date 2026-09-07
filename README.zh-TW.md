@@ -1,11 +1,11 @@
 <h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
 
 <p align="center">
-  <strong>從零拆解 AI agent 如何圍繞 LLM 運作</strong><br>
+  <strong>學會現代 AI agent 如何圍繞 LLM 打造。</strong><br>
 </p>
 
 <p align="center">
-  <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
+  <a href="#各章節"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
   <br>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-D97757" alt="Claude Code"></a>
@@ -19,18 +19,17 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <strong>繁體中文</strong> · <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md">English</a> · <strong>繁體中文</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
 </p>
 
 模型負責推理，harness（外層架構）則負責把推理變成可控的行動。工具怎麼執行、狀態怎麼保留、副作用怎麼限制，以及多個 loop 怎麼協調，都不是一次模型呼叫能處理的事。
 
 這個 repo 會逐章拆解 harness 的核心元件，包括 loop、tool、memory、permission、context、task 和 interface。
-
-讀完之後，你會更容易看懂各種 agent。coding agent、聊天助理和自動化執行器看起來差很多，但核心差異通常都來自 harness 的設計選擇。
+讀完之後，你會更容易看懂各種 agent。coding 工具、聊天助理和自動化執行器看起來差很多，但核心差異通常都來自 harness 的設計選擇。
 
 如果想把單一主題學得更深，也可以接著看這兩個延伸 repo：
 
-- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：把基礎的 memory loop 擴充成適合 production 的完整 memory 子系統。
+- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：把 memory loop 擴充成適合 production 的完整 memory 子系統。
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)：從零重建 deepseek-harness，每一章專注拆解一個 plugin 介面。
 
 **目錄：** [Agent loop](#agent-loop) · [學習方法](#學習方法) · [研究的系統](#研究的系統) ·
@@ -44,7 +43,7 @@
 
 大多數 agent 都共用同一套控制流程：呼叫模型、執行它要求的工具、把結果加回對話，然後再次呼叫模型。
 
-這個 loop 很小。大部分的工程都在它周圍：派發工具、控管副作用、管理 context、保存狀態，還有協調其他 loop。
+這個 loop 很小。大部分的工程都在它周圍：派發工具、把關副作用、管理 context、保存狀態，還有協調其他 loop。
 
 ---
 
@@ -85,7 +84,7 @@
 
 ## 各章節
 
-八層，從最基本的 loop 一路到能自己運轉的 harness。每一列都連到一篇可獨立閱讀的說明。
+八層，從最基本的 loop 一路到能自己運轉的 harness。每一行都連到一篇可獨立閱讀的說明。
 
 > [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) 會接著延伸第 9 章，用十個階段把基礎 memory loop 擴充到 production 規模。
 
@@ -161,7 +160,7 @@ awesome-agent-architecture/
 ```bash
 uv venv
 uv pip install -r requirements.txt
-cp .env.example .env        # 接著填入你的 ANTHROPIC_API_KEY
+cp .env.example .env        # then add your ANTHROPIC_API_KEY
 ```
 
 固定版本的相依套件放在 [`requirements.txt`](requirements.txt)。`.env` 已被 gitignore，內容包含：
@@ -176,8 +175,8 @@ cp .env.example .env        # 接著填入你的 ANTHROPIC_API_KEY
 - `demo.py`：對 API 的即時示範。
 
 ```bash
-python sections/01-agent-loop/src/test.py         # 離線
-uv run python sections/01-agent-loop/src/demo.py  # 即時
+python sections/01-agent-loop/src/test.py         # offline
+uv run python sections/01-agent-loop/src/demo.py  # live
 ```
 
 ---

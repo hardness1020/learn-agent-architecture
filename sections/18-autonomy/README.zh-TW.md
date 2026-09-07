@@ -1,8 +1,8 @@
 # 18 · Autonomy
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 不必等待使用者下指令，agent 閒置時也能主動認領 task 並開始工作。
+> 沒有真人 prompt 也能跑 loop：閒置就掃看板，認領一個備妥的 task，然後做完它。
 
 autonomy 指的是：即使沒有使用者 prompt 觸發新一輪，第 1 章的 agent loop 仍能持續找到並執行工作。
 
@@ -12,7 +12,7 @@ autonomy 指的是：即使沒有使用者 prompt 觸發新一輪，第 1 章的
 
 worker 完成一項工作後如果只能等待下一次派工，剛建立的 context 也無法繼續利用。
 
-另一種做法，是讓 worker 自我組織並主動認領工作。
+解法是自我組織，不是集中派工。
 
 集中指派本身仍是可行設計，而且多數已發表的 multi-agent 研究講的也是 manager 模式：每個子 agent 都註冊成 tool，由 manager 分派 subtask。manager 掌握完整計畫，因此能安排順序、移除重複工作，也能提早結束整趟執行；代價是每個 task 都要經過 manager 發出與回收兩次。
 
@@ -106,7 +106,7 @@ def claim(self, tid, owner):                           # src/tasks.py, section 1
         return {"ok": True, "task": task}
 ```
 
-- lock 把讀取、檢查、寫入包成一步做完，中間插不進別的 agent，所以檢查不會在寫入前過時。
+- lock 把讀取、檢查、寫入做成一個 atomic 步驟，所以檢查不會在寫入前過時。
 - 落敗者在 lock 內重新讀取，看到 `owner` 已被設定，於是拿到 `already_claimed`；`claim_next` 便移到下一個 task。
 - 被阻擋的 task 在這裡同樣會被拒絕，所以沒有 agent 會認領相依項尚未 `completed` 的工作。
 - 這是唯一一處兩條執行緒爭用共享狀態的地方。poll 的其餘部分都是本地的。
@@ -152,7 +152,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 **怎麼問一個正在忙的 worker：**poll 只告訴 worker 下一步做什麼，它從來不會告訴 lead 某個正在跑的 worker 現在怎麼樣。
 
-**狀態查詢（status RPC）為什麼很弱：**worker 正在跑一次 tool call 的時候，它根本沒在聽訊息，所以這種呼叫不是卡住，就是回傳空的。
+**狀態查詢為什麼很弱：**worker 正在跑一次 tool call 的時候，它根本沒在聽訊息，所以這種呼叫不是卡住，就是回傳空的。
 真正卡死的那個 worker，剛好就是不會回你的那個。
 
 **三種真的可行的做法：**第一種要 worker 配合，最後一種完全不用。
@@ -188,16 +188,16 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 | --- | --- | --- |
 | **優點** | 沒有派工者瓶頸。watcher 連別處建立的 task 也會接手。 | 無人看管的執行結果可預期，續跑狀態也存得住。 |
 | **限制** | 兩個閒置 agent 可能盯上同一個 task，得靠一把鎖裁定。 | 一個 agent 只顧一個 goal。做完了沒，也是模型自己判斷。 |
-| **設計原因** | lead 逐一派 task 會成為瓶頸，所以讓 worker 自我組織。 | 自主不是一種模式，而是一個有預算的權限等級。 |
+| **設計原因** | lead 逐一派 task 會成為瓶頸。 | 自主不是一種模式，而是一個有預算的權限等級。 |
 | **做法：idle behavior** | 500ms 一輪的 poll：先查 shutdown，再看未讀訊息，接著認領。 | 整個 agent 閒下來時，先訂走下一輪，再排一則 prompt。 |
 | **做法：work claim** | 在鎖之下寫入沒被阻擋的 task 的擁有權，只有一個人搶得到。 | 拿 goal 當下的版本號去訂下一輪，版本對不上就訂不到。 |
-| **做法：self-organization** | worker 從看板拉工作（第 12 章）。lead 只做整合，不派工。 | 沒有看板。agent 續跑自己的 goal，往外開的量也有上限。 |
+| **做法：self-organization** | worker 從看板拉工作（第 12 章）。lead 只做整合，不派工。 | 沒有看板。agent 續跑自己的 goal，fan-out 也有上限。 |
 
 ---
 
 ## 常見問題
 
-- **認領競爭（Claim race）：**兩個 agent 把一個 task 讀成無人擁有並雙雙認領，丟掉了其中一個 agent 的工作。在一個 file lock 內做認領，檢查與寫入一步做完，中間插不進別的 agent（第 12 章）。
+- **認領競爭（Claim race）：**兩個 agent 把一個 task 讀成無人擁有並雙雙認領，丟掉了其中一個 agent 的工作。在一個 file lock 內做認領，讓檢查與寫入成為一個 atomic 步驟（第 12 章）。
 - **被閒聊餓死（Starvation by chatter）：**peer 閒聊淹沒了一個 shutdown 請求，於是一個該停止的 agent 繼續 poll。在一般訊息之前先檢查 shutdown（第 16 章）。
 - **過早認領被阻擋的工作：**一個 agent 認領了相依項尚未完成的 task，然後卡住。跳過任何 `blockedBy` 仍含未解 id 的 task（第 12 章）。
 - **compaction 後身分遺失：**一個長時間運行的 teammate 在執行途中被自動 compaction（第 8 章），忘了自己的角色。保留 system prompt，讓角色得以存續。

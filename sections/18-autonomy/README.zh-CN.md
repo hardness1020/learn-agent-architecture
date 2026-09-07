@@ -1,8 +1,8 @@
 # 18 · Autonomy
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 不必等待用户下指令，agent 闲置时也能主动认领 task 并开始工作。
+> 没有真人 prompt 也能跑 loop：闲置就扫看板，认领一个备好的 task，然后做完它。
 
 autonomy 指的是：即使没有用户 prompt 触发新一轮，第 1 章的 agent loop 仍能持续找到并执行工作。
 
@@ -12,7 +12,7 @@ autonomy 指的是：即使没有用户 prompt 触发新一轮，第 1 章的 ag
 
 worker 完成一项工作后如果只能等待下一次派工，刚建立的 context 也无法继续利用。
 
-另一种做法，是让 worker 自我组织并主动认领工作。
+解法是自我组织，不是集中派工。
 
 集中指派本身仍是可行设计，而且多数已发表的 multi-agent 研究讲的也是 manager 模式：每个子 agent 都注册成 tool，由 manager 分派 subtask。manager 掌握完整计划，因此能安排顺序、移除重复工作，也能提早结束整趟执行；代价是每个 task 都要经过 manager 发出与回收两次。
 
@@ -106,8 +106,8 @@ def claim(self, tid, owner):                           # src/tasks.py, section 1
         return {"ok": True, "task": task}
 ```
 
-- lock 把读取、检查、写入包成一步做完，中间插不进别的 agent，所以检查不会在写入前过时。
-- 落败者在 lock 内重新读取，看到 `owner` 已被配置，于是拿到 `already_claimed`；`claim_next` 便移到下一个 task。
+- lock 把读取、检查、写入做成一个 atomic 步骤，所以检查不会在写入前过时。
+- 落败者在 lock 内重新读取，看到 `owner` 已被设置，于是拿到 `already_claimed`；`claim_next` 便移到下一个 task。
 - 被阻挡的 task 在这里同样会被拒绝，所以没有 agent 会认领依赖项尚未 `completed` 的工作。
 - 这是唯一一处两条线程争用共享状态的地方。poll 的其余部分都是本地的。
 
@@ -140,10 +140,10 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - 认领到的 task 成为下一个 prompt。当 poll 找不到任何东西时，worker 自己决定何时停止。
 - 那个停止有两种模式：闲置直到完成 shutdown handshake（第 17 章），或在有限看板上跑满一定次数的空 poll 后收工。
 - 这里只跑一个 worker，但 loop 是每个 agent 各一份。真正的团队会同时跑一个 lead loop 与多个 worker loop，共享同一组看板与 inbox。
-- lead 只做一个主动步骤：它调用工具建立团队与工作，然后就结束了。
+- lead 只做一个主动步骤：它调用工具创建团队与工作，然后就结束了。
 - `TeamCreate` 与 `SpawnTeammate` 是第 16 章的工具；`TaskCreate` 把 task 贴上看板（第 12 章）。
 - `SpawnTeammate` 就是 `runtime.start(...)`（第 13 章）：lead 的工具调用会在一条线程上启动一个 worker 的自主 loop。
-- spawn 之后，拉取工作与决定何时停止都是每个 worker 自己的事，lead 和外层程序都不介入。主进程只是等待 worker 收工。
+- spawn 之后，拉取工作与决定何时停止都是每个 worker 自己的事，lead 和外层脚本都不介入。主进程只是等待 worker 收工。
 - 组建团队、spawn、贴看板都是模型的决定（第 16 章与第 12 章）；自主认领则是第 18 章添加的部分。
 
 ### 延伸阅读
@@ -152,7 +152,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 **怎么问一个正在忙的 worker：**poll 只告诉 worker 下一步做什么，它从来不会告诉 lead 某个正在跑的 worker 现在怎么样。
 
-**状态查询（status RPC）为什么很弱：**worker 正在跑一次 tool call 的时候，它根本没在听消息，所以这种调用不是卡住，就是返回空的。
+**状态查询为什么很弱：**worker 正在跑一次 tool call 的时候，它根本没在听消息，所以这种调用不是卡住，就是返回空的。
 真正卡死的那个 worker，刚好就是不会回你的那个。
 
 **三种真的可行的做法：**第一种要 worker 配合，最后一种完全不用。
@@ -186,21 +186,21 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **优点** | 没有派工者瓶颈。watcher 连别处建立的 task 也会接手。 | 无人看管的执行结果可预期，续跑状态也存得住。 |
+| **优点** | 没有派工者瓶颈。watcher 连别处创建的 task 也会接手。 | 无人看管的执行结果可预期，续跑状态也存得住。 |
 | **限制** | 两个闲置 agent 可能盯上同一个 task，得靠一把锁裁定。 | 一个 agent 只顾一个 goal。做完了没，也是模型自己判断。 |
-| **设计原因** | lead 逐一派 task 会成为瓶颈，所以让 worker 自我组织。 | 自主不是一种模式，而是一个有预算的权限等级。 |
+| **设计原因** | lead 逐一派 task 会成为瓶颈。 | 自主不是一种模式，而是一个有预算的权限等级。 |
 | **做法：idle behavior** | 500ms 一轮的 poll：先查 shutdown，再看未读消息，接着认领。 | 整个 agent 闲下来时，先订走下一轮，再排一则 prompt。 |
 | **做法：work claim** | 在锁之下写入没被阻挡的 task 的拥有权，只有一个人抢得到。 | 拿 goal 当下的版本号去订下一轮，版本对不上就订不到。 |
-| **做法：self-organization** | worker 从看板拉工作（第 12 章）。lead 只做集成，不派工。 | 没有看板。agent 续跑自己的 goal，往外开的量也有上限。 |
+| **做法：self-organization** | worker 从看板拉工作（第 12 章）。lead 只做汇总，不派工。 | 没有看板。agent 续跑自己的 goal，fan-out 也有上限。 |
 
 ---
 
 ## 常见问题
 
-- **认领竞争（Claim race）：**两个 agent 把一个 task 读成无人拥有并双双认领，丢掉了其中一个 agent 的工作。在一个 file lock 内做认领，检查与写入一步做完，中间插不进别的 agent（第 12 章）。
+- **认领竞争（Claim race）：**两个 agent 把一个 task 读成无人拥有并双双认领，丢掉了其中一个 agent 的工作。在一个 file lock 内做认领，让检查与写入成为一个 atomic 步骤（第 12 章）。
 - **被闲聊饿死（Starvation by chatter）：**peer 闲聊淹没了一个 shutdown 请求，于是一个该停止的 agent 继续 poll。在一般消息之前先检查 shutdown（第 16 章）。
 - **过早认领被阻挡的工作：**一个 agent 认领了依赖项尚未完成的 task，然后卡住。跳过任何 `blockedBy` 仍含未解 id 的 task（第 12 章）。
-- **compaction 后身分遗失：**一个长时间运行的 teammate 在执行途中被自动 compaction（第 8 章），忘了自己的角色。保留 system prompt，让角色得以存续。
+- **compaction 后身份丢失：**一个长时间运行的 teammate 在执行途中被自动 compaction（第 8 章），忘了自己的角色。保留 system prompt，让角色得以存续。
 - **卡在忙碌，或卡在闲置：**一个永远抵达不了 `end_turn` 的阶段永远不会释放；一个没有出口的 poll 会空转。依 stop 信号结束（第 1 章）；每次 poll 都检查 abort。
 - **停摆没人发现：**一个 worker 抓着 task 看起来很忙，其实毫无进展，看板就一直不会把它放回去。看它的进度文件最后一次写入是什么时候，超时就把 task 收回来。
 - **整池预算失控：**闲下来的 worker 一直认领，于是要等预算花光才收得了工。每个 task 都给步数与 token 上限，同时能跑几个也要设上限。

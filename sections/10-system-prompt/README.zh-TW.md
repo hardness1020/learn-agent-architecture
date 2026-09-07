@@ -1,6 +1,6 @@
 # 10 · System prompt assembly
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 每一輪都根據當下狀態，重新產生真正需要的 system prompt。
 
@@ -58,7 +58,7 @@ def assemble(sections, state) -> str:                  # the prompt for this tur
     return "\n\n".join(p for p in parts if p is not None)
 ```
 
-每個段落要不要出現在 prompt 裡，是它自己看狀態決定的。`compute` 回傳 `None` 就略過：
+哪些段落要依狀態納入，由這份段落清單自己掌管。`compute` 回傳 `None` 就略過：
 
 ```python
 DEMO_SECTIONS = [
@@ -181,7 +181,7 @@ prompt 層降低發生機率，執行層限制損害範圍。
 - **易變文字打壞 cache：**把會變動的內容放到後面，或放到 prompt 前綴之外。
 - **段落 cache 過時：**當 session 狀態改變時，清掉被記憶的段落。
 - **Prompt 提到不存在的工具：**從即時啟用的工具集生成工具文字。
-- **脈絡混進 prompt：**當專案檔案、日期和 git 狀態經常變動時，把它們放進 context 訊息。
+- **context 混進 prompt：**當專案檔案、日期和 git 狀態經常變動時，把它們放進 context 訊息。
 - **Prompt 覆寫互相衝突：**用單一 resolver 定義優先順序。
 - **cache key 變太多份：**邊界之前每多一個條件，要各自暖機的前綴就翻倍。有條件的段落一律放到邊界之後。
 - **狀態區塊過期：**追加式的狀態會越積越多，模型可能照著舊的那一份行動。標清楚哪一份最新，或是就地換掉並接受 cache 重建。

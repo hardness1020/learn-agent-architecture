@@ -1,6 +1,6 @@
 # 18 · Autonomy
 
-**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > Run the loop with no human prompt: on idle, scan the board, claim a ready task, work it.
 

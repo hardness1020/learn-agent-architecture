@@ -1,8 +1,8 @@
 # 20 · Observability & evaluation
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 没有完整记录，就无法重现问题、控制成本，也无法可靠评估 agent。
+> 看不到的东西修不了，没人记下来的执行也评不了分。
 
 agent 会在无人看管的情况下持续执行、产生副作用，并消耗成本。单看一次模型调用，就像面对黑盒子：token 花掉了，真实动作也发生了，却不知道中间经过什么。
 
@@ -31,7 +31,7 @@ evaluation 离线跑，用的是它自己的 task 集（第 23 章）。那组 t
 - `emit` 永不阻塞、永不抛异常，所以一次 logging 故障无法卡住或弄垮 loop（第 1 章）。
 - event 会先在队列里缓冲，等某个 sink 接上再一次送出，所以 loop 在 telemetry 就绪之前就能 log。
 - 采样依速率丢弃 event；scrub 只保留白名单字段，所以代码与路径永不外泄。
-- 成本按模型累加成一个 USD 总额，实时显示并在退出时显示。
+- 成本按模型累加成一个 USD 总额，执行中看得到，退出时再报一次。
 
 ### 本章添加：fire-and-forget 事件记录
 
@@ -156,9 +156,9 @@ context 里多出来的任何东西，后面每一轮都得再付一遍，总额
 | --- | --- | --- | --- |
 | **优点** | 低成本又安全地换来丰富的正式环境可见度。 | crash 掉的 run 也留得下文件。 | 不用另外埋点：模型看得到的，log 里就有。 |
 | **限制** | 只说发生了什么，答案好不好看不出来。 | 正式环境 telemetry 几乎没有。 | 没附任何脱敏规则。送出去可能会漏，也可能重复。 |
-| **设计原因** | 正式环境得盯住崩溃和成本，又不能碰 loop。 | 质量靠离线 benchmark 评分，完整记录最重要。 | session log 本来就是记录，直接把它送出去就好。 |
+| **设计原因** | 正式环境要盯住，但不能动到 loop。 | 质量靠离线 benchmark 评分，完整记录最重要。 | session log 本来就是记录，直接把它送出去就好。 |
 | **做法：telemetry** | event 先排队，等 sink 接上再采样、scrub。 | 每趟 run 一个轨迹档，每一步都存。 | 每一则 session 事件都经过脱敏那一关再镜射出去。 |
-| **做法：cost tracking** | 每模型 token 按定价滚成一个 session 总额。 | 逐次计价，汇总成 run 与全局总额。 | 重放整份 log 算出 token 数，从不换算成钱。 |
+| **做法：cost tracking** | 每模型 token 按定价滚成一个 session 总额。 | 逐次计价，汇总成 run 与全局总额。 | 重放整份 log 算出 token 数，不换算成金额。 |
 | **做法：eval feed** | 源代码中没有；trace 脱敏后变成 regression 案例。 | 存下来的轨迹喂给 benchmark runner。 | 录下来的 run 不用密钥就能重放，当成固定样本。 |
 
 ---

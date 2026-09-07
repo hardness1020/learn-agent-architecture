@@ -1,6 +1,6 @@
 # 23 · Evaluation
 
-**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > A pass rate is only worth what the environment behind it is worth.
 

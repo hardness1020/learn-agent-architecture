@@ -1,6 +1,6 @@
 # 22 · Graph engineering
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 已知的流程交给代码控制，只有真正需要判断时才调用 model。
 
@@ -149,7 +149,7 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 | --- | --- | --- | --- |
 | **优点** | Routing 是代码：不花 token、不会变来变去。续跑时跑完的 node 从记录重放。 | 不用事先画图，任务长什么样，结构就长什么样。 | 整张图一眼就能看完。 |
 | **限制** | 图活在单次执行的 script 里，不是可以重用的声明式图。 | Routing 花 model 的 token，每次跑可能不一样。 | 所有任务共享同一个形状，没有分支可以特化。 |
-| **设计原因** | 把编排当成程序：script 写好一次，harness 每次都决定性地执行。 | 假设助手型工作太开放，结构没办法预先声明。 | 一个 baseline：所有选择都留在 model 里，harness 只留一个 cycle。 |
+| **设计原因** | 把编排当成程序：script 写好一次，harness 每次都决定性地执行。 | 假设助手型工作太开放，结构没办法预先声明。 | 所有选择都留在 model 里，harness 只留一个 cycle。 |
 | **做法：nodes** | 一个 node 一个 subagent，返回通过 schema 验证的结构化输出。 | 委派出去的 subagent，深度和并行数都有上限。 | 两个：一个 model step、一个 environment step。 |
 | **做法：routing** | 阶段之间用普通的 script 代码：条件、循环、并行分派。 | model 用 tool call 选路，没有写在代码里的 edge。 | 一个固定的 cycle，跑到 model 提交或 budget 用完为止。 |
 | **做法：state** | 阶段的返回值往下传；journal 记下每个 node 的输出供续跑。 | 结果经过 completion queue 回到调用方。 | message list 就是全部的 state。 |

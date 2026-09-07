@@ -1,6 +1,6 @@
 # 13 · Background execution
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 把耗時工作移到背景執行，主 loop 可以先繼續處理其他事。
 
@@ -123,7 +123,7 @@ ai-agent-book 的做法是當場補：對同一個 id 補一則佔位用的 `too
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **優點** | 吞吐量提升，也不再有閒置的等待。單純的等待不會卡住任何東西。 | 同一個登記處管 shell、終端機和 child agent。 |
+| **優點** | 吞吐量提升，也不再有閒置的等待。單純的等待不會卡住任何東西。 | 同一個 registry 管 shell、終端機和 child agent。 |
 | **限制** | 結果可能較晚抵達，順序也可能顛倒。runtime 要顧狀態和清理。 | 叫醒閒著的 agent 會花掉模型輪次，所以得給它一個額度。 |
 | **設計原因** | 一個跑很久的指令不該凍結整個 agent。 | 工作跑完要讓模型知道，而不是叫模型自己一直去問。 |
 | **做法：off-loop primitive** | 背景 shell task 和背景 agent task，subprocess 繼續跑，輸出被轉導。 | 任何工具都能帶一個「丟到背景跑」的旗標，回傳一個 job id。 |

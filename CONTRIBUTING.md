@@ -30,9 +30,9 @@ This checklist is what reviewers check on every PR.
 
 ## Translations
 
-Every `README.md` ships with `README.zh-TW.md` and `README.zh-CN.md`.
-If you edit one, update all three in the same commit.
-Write natural spoken Chinese. Keep technical terms in English
+Every `README.md` ships with `README.zh-TW.md`, `README.zh-CN.md`, `README.ja.md`, and `README.ko.md`.
+If you edit one, update all five in the same commit.
+Write natural spoken Chinese, Japanese, and Korean. Keep technical terms in English
 (`stop_reason`, `PreToolUse`, hook, harness, loop, prompt, token).
 
 ## Commits

@@ -1,6 +1,6 @@
 # 5 · Planning & todos
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 面对多步骤任务，先把计划写下来，再开始动手。
 
@@ -21,10 +21,11 @@
 
 ![机制图](assets/05-planning-and-todos.png)
 
-这里加入两个一般的模型工具，核心 loop 完全不需要修改。
+这里有两个工具。两个都是一般的模型工具，核心 loop 完全不需要修改。
 
-- **Todo list：**模型会覆盖一份结构化的检查列表。这个工具不会碰文件或 shell，只负责保存目前 session 的计划状态。
-- **Plan mode：**session 进入只读模式后，模型可以探索并撰写计划，但必须调用 `ExitPlanMode` 并通过 permission gate，才能开始修改。
+**Todo list。**模型会覆盖一份结构化的检查列表。这个工具不会碰文件或 shell，只负责保存目前 session 的计划状态。
+
+**Plan mode。**session 进入只读模式。模型可以探索、写下计划，然后调用 `ExitPlanMode`。这个离开动作由 permission 层把关。
 
 ### 本章添加：todo 与 plan mode 工具
 
@@ -73,7 +74,7 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都会写入�
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **优点** | 简单又便宜。memory 中的 todo list 没有依赖，也没有锁。 | 计划与 todo 状态能经受重启、fork 与 compaction。 |
+| **优点** | 简单又便宜。放在内存里的 todo list 没有依赖，也没有锁。 | 计划与 todo 状态能经受重启、fork 与 compaction。 |
 | **限制** | 只是 session 状态。要跨 turn 存活的工作得交给 task graph（见第 12 章）。 | plan mode 自己挡不住任何东西，要 sandbox 或 approval policy 出手才挡得下编辑。 |
 | **设计原因** | 计划只留在 prompt 里会走丢，而且计划批准前不该动文件。 | session log 才是唯一的事实来源，所以计划状态也只是一则事件。 |
 | **做法：plan artifact** | 一份 todo list 加一个 plan 档。`TodoWrite` 覆盖列表，从不被控制。 | `todo_write` 把整份列表当成一则事件附加上去，重放事件就能还原列表。 |
@@ -88,7 +89,7 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都会写入�
 - **对小工作过度规划：**为一个单步骤的任务列 todo list 会增加噪声。琐碎的任务就略过它。
 - **Plan mode 无法离开：**有些接口无法显示批准对话框。在那些接口上要把进入与离开一起停用。
 - **没进入就离开：**模型可能在不合适的 context 下调用 `ExitPlanMode`。要先验证当前 mode 是否为 `plan`。
-- **计划随 context 消失：**一份扁平的 todo list 是 session 状态。当工作必须跨越一个 turn 或程序而存活时，要改用 task 系统。
+- **计划随 context 消失：**一份扁平的 todo list 是 session 状态。当工作必须跨越一个 turn 或进程而存活时，要改用 task 系统。
 
 ---
 

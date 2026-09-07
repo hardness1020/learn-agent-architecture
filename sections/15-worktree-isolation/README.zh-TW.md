@@ -1,12 +1,12 @@
 # 15 · Worktree isolation
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 為平行工作的 agent 準備彼此隔離的工作目錄。
 
-單一工作目錄是一份共用的可變狀態。兩個 agent 同時修改同一個檔案時，其中一方很可能覆蓋另一方的成果。
+單一工作目錄是一份共用的可變狀態。兩個 agent 同時修改同一個檔案時，其中一方可能覆蓋另一方的成果。
 
-task system 負責記錄有哪些工作，subagent 負責拆分與執行，而 worktree isolation 則把實際寫入隔開。每個 agent 都在自己的目錄工作，避免互相干擾。
+task system 負責記錄有哪些工作，subagent 負責決定工作怎麼拆，而 worktree isolation 則把實際寫入隔開。每個 agent 都在自己的目錄工作，避免互相干擾。
 
 每個工作單元都有獨立的 checkout 和 branch，agent 的檔案工具與 shell 工具也只會在該 checkout 中解析路徑。
 
@@ -15,9 +15,9 @@ task system 負責記錄有哪些工作，subagent 負責拆分與執行，而 w
 1. 為每個工作單元建立獨立 checkout。
 2. 把所有工具綁定到對應的 checkout。
 3. 拒絕任何可能逃出 worktree 根目錄的路徑。
-4. 自動移除沒有變更的 worktree，保留有改動的版本供後續審查。
+4. 移除沒有變更的 worktree，保留有改動的供後續審查。
 
-沒有這一層，多個 agent 同時修改同一個目錄時，很容易造成衝突或損壞檔案。
+沒有這一層，多個 agent 同時修改同一個目錄時，可能損壞彼此的檔案。
 
 ---
 
@@ -94,7 +94,7 @@ loop 與 subagent 路徑不需要特殊邏輯。只有工具看到的工作目�
 | **限制** | 要付出硬碟空間、建置時間，以及之後的 merge 步驟。 |
 | **設計原因** | 好幾個 agent 同時寫同一個目錄不安全，所以每個工作單元都在自己的 checkout 裡寫。 |
 | **做法：isolation unit** | 每個 task 或 session 一個 git worktree，各自有自己的 branch。模型開 subagent 時可以自己要求一個。 |
-| **做法：binding** | subagent 用限定範圍的 cwd，並行的 agent 互不影響。session 模式改 process cwd。綁定存在於 cwd 範圍裡，task 記錄不存。 |
+| **做法：binding** | subagent 用限定範圍的 cwd，並行的 agent 互不影響。session 模式改 process cwd。task 記錄從不保存這個綁定。 |
 | **做法：cleanup** | 移除乾淨的 worktree。有變更的會保留，除非使用者明確捨棄變更。週期性的清掃會移除舊的臨時 worktree。 |
 
 ---

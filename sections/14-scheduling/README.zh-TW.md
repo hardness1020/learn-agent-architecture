@@ -1,6 +1,6 @@
 # 14 · Scheduling
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 讓時間也能啟動 agent，不必每次都等使用者輸入。
 
@@ -57,7 +57,7 @@ def tick(self):                                       # src/scheduler.py; called
 
 ### 本章新增：投遞答案
 
-排程觸發的 turn 跑起來時，螢幕前沒有使用者，跑完的答案不主動送出去就沒人看到。所以每個 task 可以指定一個 channel。
+fire 出來的那次執行沒有人在等，所以答案需要一條送出去的路。每個 task 可以指定一個 channel。
 channel 就存在 task 裡，是那筆排程資料的一個欄位：`create(..., channel="console")` 存進去，`tick` fire 時再把它和 prompt 一起放進 queue。
 所以 driver 從 queue 拿出來的每個項目，已經是 `{"prompt": ..., "channel": ...}`，不用再去別處查這個答案要送哪。
 
@@ -75,7 +75,7 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 - `channels` 把 channel 名稱對應到一個送信的 callable（這裡是 print；真正的 adapter 是第 19 章的事）。
   task 指定 channel；driver 擁有這張對照表。兩邊互不知道對方的細節。
-- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是給排程任務的約定：模型跑完發現沒有新東西值得通知使用者（例如這次輪詢沒看到任何變化），就用這個開頭。driver 手上仍有完整文字，要留檔照樣可以。
+- 答案以 `[SILENT]` 開頭時，`deliver` 直接跳過，不把它送進 channel。這是排程檢查的約定：這次跑完沒發現任何值得通知使用者的事（例如輪詢沒看到變化）。driver 手上仍有完整文字，可以寫進 log。
 - 沒有 channel 表示答案留在本地，也就是加入投遞之前的行為。
 - `bool` 回傳值讓 driver 可以改走別條路（demo 會印出未投遞的答案），而不是無聲地丟掉答案。
 
@@ -83,7 +83,7 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 有些來源不會主動推播：沒有 webhook 的信箱、沒有 feed 的網頁、你不問就不回答的服務。
 對這些來源，能用的觸發條件只剩時鐘。做法叫 heartbeat：一個週期性的 schedule，prompt 是叫 agent 去看一眼，不是叫它動手。
-看一下來源，判斷有沒有變化值得講一句，沒有就閉嘴。
+看一下來源，判斷有沒有變化值得講一句，沒有就不出聲。
 
 heartbeat 跑完發現沒什麼好講的，就回一個 `[SILENT]`。照上面那條規則，`deliver` 什麼都不會送出去。
 這一次 tick 只花一次 model 呼叫，channel 上不會多一則訊息，所以這個 schedule 可以跑得比較密。
@@ -149,7 +149,7 @@ for task in sched.drain():                            # src/demo.py · between t
 - **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
 - **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
 - **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。
-- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回報，使用者就學會忽略它。讓 prompt 自己判斷什麼值得送出，其餘時候閉嘴。
+- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回報，使用者就學會忽略它。讓 prompt 自己判斷什麼值得送出，其餘時候就不出聲。
 - **兩次 tick 之間的事件：**時鐘取樣的是狀態。在兩次 tick 之間出現又消失的變化，它看不到。改讀 log 或游標，或把來源換成推播。
 
 ---

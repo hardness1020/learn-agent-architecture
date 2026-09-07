@@ -1,19 +1,19 @@
 # 19 · MCP / plugins / channels
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 通过标准 protocol，让 harness 不改核心程序也能连接外部能力。
+> 能力不够？再插上更多。harness 通过一套标准 protocol 接到外面的世界。
 
 harness 能做什么，取决于它有哪些工具。但每个内置工具都必须预先定义 input schema、执行逻辑和错误处理，不可能涵盖所有外部服务。
 
-当用户想连接 issue tracker、部署系统或知识库时，逐一为每个服务和程序语言撰写专属工具，很快就会失去扩展性。
+当用户想连接 issue tracker、部署系统或知识库时，逐一为每个服务和编程语言撰写专属工具，很快就会失去扩展性。
 
-MCP（Model Context Protocol）是一套用来解决这个问题的开放标准。外部服务可以自行声明工具，agent 只需要按照 schema 调用，不必知道工具由谁实现、内部怎么运作。
+MCP（Model Context Protocol）是一套用来解决这个问题的开放标准。外部服务可以自行声明工具，agent 只需要按照 schema 调用，不必知道工具由谁实现、内部怎么运行。
 在 MCP 中，提供工具的服务称为 server，负责连接与调用的 harness 则是 client。
 
 这样一来，不必修改 harness 核心，就能替 agent 加入 Jira 或部署工具。没有 MCP，agent 的能力只能停留在安装时内置的工具集合。
 
-除了 MCP，本章也会介绍建立在它之上的两个机制：plugin 把 server、hook 和 skill 包成可一次安装的软件包；channel 则让 server 主动把消息推回 agent。两者共享同一套 protocol。
+有两个机制建立在它之上。plugin 把 server、hook 和 skill 包成可一次安装的软件包；channel 则让 server 主动把消息推回 agent。两者共享同一套 protocol。
 
 ---
 
@@ -25,7 +25,7 @@ MCP（Model Context Protocol）是一套用来解决这个问题的开放标准�
 
 名称以 `mcp__<server>__<tool>` 加上命名空间，所以两个 server 永远不会撞名。loop 与 gate 都不变：一个 MCP 工具就是一个 `Tool`，只是它的 `run()` 会通过 transport 对外调用。
 
-- 对每个 server 调用一次 `tools/list`，问它有哪些工具；返回列表里的每一笔规格，都被包成一个 `Tool`。
+- 对每个 server 调用一次 `tools/list`，问它有哪些工具；返回列表里的每一条规格，都被包成一个 `Tool`。
 - 名称加了命名空间并经过标准化，所以它是唯一的，也符合 API 的名称样式。
 - 每个工具的 MCP annotation（`readOnlyHint`、`destructiveHint`）成为 gate 读取的权限提示（第 3 章）。
 - 合并进那一个 `Registry` 之后，模型会在同一份列表里看到 MCP 工具与内置工具。
@@ -47,10 +47,10 @@ MCP（Model Context Protocol）是一套用来解决这个问题的开放标准�
   （问用户一个问题、请模型 sample）。现在它返回一个标着 `input_required` 的中间结果，
   client 把答案附上，重发同一个 request。
 - **功能变少了：**Roots、Sampling、Logging 和旧的 HTTP+SSE transport 都列为 deprecated。
-  官方 transport 剩两种：本地用 stdio，远端用 Streamable HTTP。
+  官方 transport 剩两种：本地用 stdio，远程用 Streamable HTTP。
 
-对用 agent 的人来说，画面上什么都没变：旧 server 照常运作，v1 SDK 也继续维护。
-好处都出现在用户看不到的地方：远端 server 能挂在 load balancer 后面扩展，第一次调用少一次来回，cache 住的工具列表也省 token。
+对用 agent 的人来说，画面上什么都没变：旧 server 照常运行，v1 SDK 也继续维护。
+好处都出现在用户看不到的地方：远程 server 能挂在 load balancer 后面扩展，第一次调用少一次来回，cache 住的工具列表也省 token。
 用到 deprecated 功能的 server 有十二个月的窗口可以迁移。那是 server 作者要做的事，不是用户的事。
 
 ### 本章添加：包装探索到的工具
@@ -75,7 +75,7 @@ def wrap(server, spec, call):
 ```
 
 - `tool_name` 为每个工具加上命名空间；`normalize` 把任何落在 `[a-zA-Z0-9_-]` 之外的字符换成 `_`，以符合 API 名称样式。
-- `run` 捕捉了裸工具名与 server 的 `call`，所以 dispatch 被包装的 `Tool` 时会通过 transport 回呼过去。
+- `run` 把裸工具名和 server 的 `call` 记在身上，所以 dispatch 被包装的 `Tool` 时会通过 transport 回调过去。
 - `readOnlyHint` annotation 成为 `is_read_only`，这正是权限 gate（第 3 章）用来决定放行或询问的依据。
 
 ### 本章添加：探索与合并
@@ -128,7 +128,7 @@ def gate_inbound(source, payload, gates=()):           # src/mcp.py
     return wrap_channel(source, payload)
 ```
 
-- 一个 gate 可以 drop（垃圾消息、不明寄件者）或 rewrite（遮蔽机密），发生在 loop 看到文字之前。
+- 一个 gate 可以 drop（垃圾消息、不明发件人）或 rewrite（遮蔽机密），发生在 loop 看到文字之前。
 - 返回 `None` 代表这则消息不会变成任何 turn，垃圾输入连一次模型调用都不用花。
 
 ### 如何集成到现有架构
@@ -142,7 +142,7 @@ for t in mcp.connect("kb", KBServer()):                # discover, wrap, merge
 run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 ```
 
-- 模型在它的工具列表里看到 `mcp__kb__search` 就在任何内置工具旁边，并调用它；它永远不会得知是谁写了这个工具。
+- `mcp__kb__search` 就出现在内置工具旁边，模型在工具列表里看到就直接调用。它永远不会得知是谁写了这个工具。
 - 这个工具是只读的，所以 gate 不提示就放行。一个具破坏性的工具则会询问，或由一条以完整名称为键的规则预先批准。
 - loop 不变。MCP 只是往池里加工具；下游的一切都是第 2 章的 dispatch 与第 3 章的 gating。
 
@@ -153,8 +153,8 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 **三种 primitive，只有一种进池子：**一个 server 可以提供三种东西，但只有 tool 会进到上面那个池子。
 
 - **Tools** 是动作。模型自己挑一个来调用。`tools/list` 返回的就是这些，上面的代码包的也是它们。
-- **Resources** 是可以读的数据，每一笔都有一个 URI：一个文件、一张表、一页 wiki。client 把它抓下来，把内容放进 context。模型不会去调用它。
-- **Prompts** 是 server 给的模板。它通常是用户可以下的一个指令，不是模型自己挑的东西。
+- **Resources** 是可以读的数据，每一条都有一个 URI：一个文件、一张表、一页 wiki。client 把它抓下来，把内容放进 context。模型不会去调用它。
+- **Prompts** 是 server 给的模板。它通常是用户可以运行的一个命令，不是模型自己挑的东西。
 
 **resource 不会出现在工具列表上：**Claude Code 不会把它们一个一个公告出去，它只放两个工具，一个列出 resource，一个把 resource 读出来。
 所以一个放了上千份文件的 server，在工具列表里还是只占两格。
@@ -183,11 +183,11 @@ harness 如何伸手触及自身之外。
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **优点** | 任何服务、任何语言都接得上，不用改 harness。 | 其他 client 能把它当 MCP server 来用。 | server 就是一份配置，不重启也能换掉一台。 |
-| **限制** | 每个 server 都是新的攻击面，annotation 还是自己报的。 | channel 谁都能发：垃圾消息，想操纵 agent 的话也一样。 | 只接工具，也没有聊天 channel 能把消息推进来。 |
-| **设计原因** | 少了 MCP，能力就停在安装当下内置的那一套。 | agent 同时是 MCP client 和 MCP server。 | 每样东西都是 plugin，MCP server 也只是其中一个。 |
-| **做法：transports** | 六种，从本地 stdio 到远端 http，各连各的池。 | MCP 双向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一个 plugin。 |
+| **限制** | 每个 server 都是新的攻击面，annotation 还是自己报的。 | channel 谁都能发：可能是垃圾消息，也可能是想操纵 agent 的文字。 | 只接工具，也没有聊天 channel 能把消息推进来。 |
+| **设计原因** | 少了 MCP，能力就停在安装当下内置的那一套。 | agent 同时是 MCP client 和 MCP server。 | 每样东西都是 plugin，server 也只是其中一个。 |
+| **做法：transports** | 六种，从本地 stdio 到远程 http，各连各的池。 | MCP 双向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一个 plugin。 |
 | **做法：plugin format** | 一个 plugin 打包 server、hook、skill，按优先序合并。 | 一份 manifest 加一个注册入口。 | 一列一列的配置。patch 用 id 整列换掉。 |
-| **做法：tool pool assembly** | 复制、加命名空间，annotation 成为 gate 的权限提示。 | plugin 与 MCP 工具进同一个 registry。 | 一台 server 的工具整批换上，出错就整批回滚。 |
+| **做法：tool pool assembly** | 复制、加命名空间，annotation 成为 gate 的权限提示。 | plugin 与 MCP 工具进同一个 registry。 | 一台 server 的工具整批换上，或是整批回滚。 |
 
 ---
 
@@ -198,7 +198,7 @@ harness 如何伸手触及自身之外。
   缓解：截断描述，并且一个 server 一个 server 决定公告多少，不要每次 request 都把所有 schema 送一遍。
 - **connect 之后池过时：**一个在 session 中途加入的 server 不在 cache 的工具列表里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）；
   2026-07-28 版的 spec 为此加了走 `subscriptions/listen` 的 `toolsListChanged` 通知和 `ttlMs` 提示。
-- **连接抖动（Connection churn）：**一个不稳的 server 会超时、重置，或 token 过期。缓解：反覆失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
+- **连接抖动（Connection churn）：**一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
   stateless 版拿掉了 stream 续传，所以中断的 request 要当成一个新 request 重发，不是接着传。
 - **被过度信任的副作用：**一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
 - **描述投毒（Description poisoning）：**工具描述是 server 自己写的文字，模型却把它当成指令在读。
@@ -244,7 +244,7 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
   [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)：stateless protocol、tools / resources / prompts 三种 primitive、
   `server/discover`、`subscriptions/listen`、MRTR、deprecation 列表。
 - MCP blog：[the future of transports](https://blog.modelcontextprotocol.io/posts/2025-12-19-mcp-transport-future/)（protocol 为什么走向 stateless）、
-  [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/)（v2 SDK 与向后相容）。
+  [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/)（v2 SDK 与向后兼容）。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版为准。工具生态那一节：
   MCP 的 primitive、公告 schema 的 context 开销，以及信任模型（描述投毒、工具遮蔽、被劫持的更新、凭证范围）。
 - 章节定位：[learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code)。

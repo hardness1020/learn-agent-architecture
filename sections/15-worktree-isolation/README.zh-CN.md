@@ -1,23 +1,23 @@
 # 15 · Worktree isolation
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 为并行工作的 agent 准备彼此隔离的工作目录。
 
-单一工作目录是一份共享的可变状态。两个 agent 同时修改同一个文件时，其中一方很可能覆盖另一方的成果。
+单一工作目录是一份共享的可变状态。两个 agent 同时修改同一个文件时，其中一方可能覆盖另一方的成果。
 
-task system 负责记录有哪些工作，subagent 负责拆分与执行，而 worktree isolation 则把实际写入隔开。每个 agent 都在自己的目录工作，避免互相干扰。
+task system 负责记录有哪些工作，subagent 负责决定工作怎么拆，而 worktree isolation 则把实际写入隔开。每个 agent 都在自己的目录工作，避免互相干扰。
 
 每个工作单元都有独立的 checkout 和 branch，agent 的文件工具与 shell 工具也只会在该 checkout 中解析路径。
 
 隔离层必须：
 
-1. 为每个工作单元建立独立 checkout。
+1. 为每个工作单元创建独立 checkout。
 2. 把所有工具绑定到对应的 checkout。
 3. 拒绝任何可能逃出 worktree 根目录的路径。
-4. 自动移除没有变更的 worktree，保留有改动的版本供后续审查。
+4. 移除没有变更的 worktree，保留有改动的供后续审查。
 
-没有这一层，多个 agent 同时修改同一个目录时，很容易造成冲突或损坏文件。
+没有这一层，多个 agent 同时修改同一个目录时，可能损坏彼此的文件。
 
 ---
 
@@ -39,7 +39,7 @@ task system 负责记录有哪些工作，subagent 负责拆分与执行，而 w
 
 ### 本章添加：worktree 与 cwd 绑定
 
-`worktree.py` 验证一个 slug、建立一个 worktree，并通过 context variable 绑定 cwd：
+`worktree.py` 验证一个 slug、创建一个 worktree，并通过 context variable 绑定 cwd：
 
 ```python
 _cwd = contextvars.ContextVar("cwd", default=None)   # per-context cwd
@@ -91,17 +91,17 @@ loop 与 subagent 路径不需要特殊逻辑。只有工具看到的工作目�
 | | Claude Code |
 | --- | --- |
 | **优点** | 真正的文件系统隔离，diff 也干净。有变更的 worktree 会留下来供审查，成果不会默默遗失。 |
-| **限制** | 要付出磁盘空间、建置时间，以及之后的 merge 步骤。 |
+| **限制** | 要付出磁盘空间、构建时间，以及之后的 merge 步骤。 |
 | **设计原因** | 好几个 agent 同时写同一个目录不安全，所以每个工作单元都在自己的 checkout 里写。 |
 | **做法：isolation unit** | 每个 task 或 session 一个 git worktree，各自有自己的 branch。模型开 subagent 时可以自己要求一个。 |
-| **做法：binding** | subagent 用限定范围的 cwd，并行的 agent 互不影响。session 模式改 process cwd。绑定存在于 cwd 范围里，task 记录不存。 |
+| **做法：binding** | subagent 用限定范围的 cwd，并行的 agent 互不影响。session 模式改 process cwd。task 记录从不保存这个绑定。 |
 | **做法：cleanup** | 移除干净的 worktree。有变更的会保留，除非用户明确舍弃变更。周期性的清扫会移除旧的临时 worktree。 |
 
 ---
 
 ## 常见问题
 
-- **slug 里的路径穿越：**在路径组合或 git 指令之前先验证。
+- **slug 里的路径穿越：**在路径组合或 git 命令之前先验证。
 - **移除时默默遗失：**除非用户明确舍弃变更，否则保留有变更的 worktree。
 - **cwd 在 agent 之间外泄：**对并行的 subagent 使用 context-local 的 cwd。
 - **陈旧 worktree 堆积：**只清扫已知的临时 worktree。
@@ -113,7 +113,7 @@ loop 与 subagent 路径不需要特殊逻辑。只有工具看到的工作目�
 
 [`src/`](src/) 承接第 14 章并加上：
 
-- [`worktree.py`](src/worktree.py)：slug 验证、worktree 建立、context-local 的 cwd，以及安全移除。
+- [`worktree.py`](src/worktree.py)：slug 验证、worktree 创建、context-local 的 cwd，以及安全移除。
 - [`test.py`](src/test.py)：检查两个 agent 在各自的 worktree 里写入，以及干净/有变更的移除闸门。
 - [`demo.py`](src/demo.py)：在 worktree 里跑一个 live turn。
 

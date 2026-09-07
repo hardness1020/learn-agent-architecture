@@ -1,12 +1,12 @@
 # 11 · Error recovery
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 先判斷錯誤類型，再決定要重試、調整，還是停止。
 
 一次 agent 執行通常包含多次模型呼叫，其中任何一步都可能因網路問題、服務過載、rate limit、輸出上限或 context overflow 而失敗。
 
-而且會出錯的不只有模型呼叫。針對 production coding agent 的研究，通常把失敗分成四個層級：
+而且會出錯的不只有模型呼叫。有一份針對 production coding agent 的研究，把失敗分成四個層級：
 
 - **API：**timeout、rate limit 和過載。
 - **tool：**指令回傳非零，或是 handler 拋出例外。

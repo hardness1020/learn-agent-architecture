@@ -1,8 +1,8 @@
 # 7 · Skills
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> skill 把一套专业工作流程包起来，只在任务需要时加载。
+> skill 是一包自成一体的专业知识：指令，加上需要用到的 script 和文件，只在任务需要时加载。
 
 skill 可以让通用 agent 在特定任务上具备专业能力。它打包一整套工作流程，包括要遵循的指令、可执行的 script，以及需要参考的文件。
 agent 只有在任务用得到时才加载对应的 skill，因此可以拥有大量专门能力，又不必一开始就把所有内容塞进 context。
@@ -28,11 +28,11 @@ skill 系统必须做到：
 
 skill 使用 progressive disclosure。模型只会看到刚好足够的信息，来决定要不要加载更多。
 
-1. **Metadata：**来自 frontmatter 的 `name` 和 `description`，再加上这个 skill 的路径。这份 catalog 只占少量 token，所以一直放在 system prompt 里。
+1. **Metadata：**来自 frontmatter 的 `name` 和 `description`，再加上这个 skill 的路径。这份 catalog 很便宜，每个 turn 都跟着 system prompt 一起送。
 2. **Instructions：**`SKILL.md` 的本文。只有在某个任务需要这个 skill 时，模型才会去读这个文件。
 3. **Resources：**skill 文件夹里的额外文件。指令指向它们时，模型用同一个 file tool 读取。
 
-不需要专门的 skill tool。只要 catalog 列出每个 skill 的名称和路径，agent 就用一般的 Read tool 去读那个文件来加载 skill。L2 和 L3 都只是读档而已。
+不需要专门的 skill tool。只要 catalog 列出每个 skill 的名称和路径，agent 就用一般的 Read tool 去读那个文件来加载 skill。L2 和 L3 都只是读文件而已。
 
 description 这一行最关键。它是路由条件，不是摘要。
 模型在决定要不要加载之前，就只看得到这一行。所以要写清楚什么时候该用，也要写什么时候不该用。
@@ -81,11 +81,11 @@ def write_skill(skills_dir, name, description, body) -> Path:   # src/skills.py
     return target
 ```
 
-- `WriteSkill` 是包住这个函数、面向模型的 tool。写入 skill 会改动文件系统，属于有副作用的操作，所以第 3 章的权限闸门默认会先征询用户；只有 allow 规则预先批准过，才会直接放行。
+- `WriteSkill` 是包住这个函数、面向模型的 tool。写入 skill 是副作用，所以除非有规则预先批准，第 3 章的闸门会先问过。
 - 写出来的文件就是普通的 `SKILL.md`。没有任何特殊标记：下一次 `load_skills` 扫描会把它当成一般的 skill 编入 catalog。
 - 名称的解析和检查方式跟 `read_tool` 检查路径一样，所以不论读或写，都逃不出 skills 目录。
 
-要清理过时内容，得先量测。加载 skill 本身就是使用信号，所以 `read_tool` 在读档的同时顺手记录：
+要清理过时内容，得先量测。加载 skill 本身就是使用信号，所以 `read_tool` 在读取文件的同时顺手记录：
 
 ```python
 if target.name == "SKILL.md":                # inside read_tool's read()
@@ -110,14 +110,14 @@ def stale_skills(skills_dir, skills, now=None, stale_after=STALE_AFTER) -> list[
 
 - 这笔记录以 skill 的文件夹名称为 key，取自模型读取的路径。读 resource（L3）不会累计，只有读 `SKILL.md` 本文（L2）才算。
 - 没有记录的 skill，`last_used_at` 是 0，所以从未用过的 skill 也算 stale。
-- `stale_skills` 是一份报告，不是一个动作。要怎么处理是 curator 的工作；Hermes 用一个后台 curator agent 处理同样的信号（归档、整并、钉选）。
+- `stale_skills` 是一份报告，不是一个动作。要怎么处理是 curator 的工作；Hermes 用一个后台 curator agent 处理同样的信号（归档、整合、钉选）。
 - 数据会形成一个跨多次执行的 loop：读取操作更新 `.usage.json`，curator 再读取它，catalog 反映保留下来的 skill，`WriteSkill` 则加入新条目。
 
 ### 如何集成到现有架构
 
-loop 不用改。读取 skill 就是一次普通的工具调用，tool 结果照样进入 `messages[]`。
+loop 不用改。读取 skill 会返回一个 tool 结果，进到 `messages[]`。
 
-三层各有位置：catalog 放在 system prompt。skill 本文要等模型读了 `SKILL.md`，才会进到对话里。resource 文件则等到真的用到时才读。
+catalog 放在 system prompt。skill 本文要等模型读了 `SKILL.md`，才会进到对话里。resource 文件则等到真的用到时才读。
 
 加载后的 skill 文字就在 `messages[]` 里，所以之后 context 不够用时，它会跟其他消息一起被压缩（第 8 章）。skill 本文要写短，大型参考资料改成指向文件。
 
@@ -159,11 +159,11 @@ skill 是这个 repo 第一次碰到 progressive disclosure 的地方；照书�
 它会经过起草、测试、评估、修订，才被升级。Anthropic 的 Skill Creator 就是跑这个 loop。
 放到本章的代码里，就是多一个暂存文件夹，`load_skills` 先跳过它，等 curator 升级才收。
 
-**整并是离线做的：**curator 是调度跑的，不是实时跑的。书里叫它 sleep-time learning，分成五步：
+**整合是离线做的：**curator 是按计划跑的，不是实时跑的。书里叫它 sleep-time learning，分成五步：
 
-1. **触发：**调度时间到、系统闲置，或 store 大小超过上限。
-2. **定位：**先对 store 做一次快照，后面每一步才都能回滚。
-3. **搜集与合并：**读使用记录和最近几次执行，把几乎重复的 skill 并成一个，再把 candidate 收进来。
+1. **触发：**到了计划时间、系统闲置，或 store 大小超过上限。
+2. **先定基准：**先对 store 做一次快照，后面每一步才都能回滚。
+3. **收集与合并：**读使用记录和最近几次执行，把几乎重复的 skill 并成一个，再把 candidate 收进来。
 4. **验证与批准：**拿产生它们的那几次执行，去检查合并后的本文。没过的就不收。
 5. **修剪与建索引：**依固定规则归档过期的 skill，然后重建 catalog。
 
@@ -178,12 +178,12 @@ skill 是这个 repo 第一次碰到 progressive disclosure 的地方；照书�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **优点** | catalog 有预算上限。skill 能 fork，还能限制 tool。 | curator 会整并新 skill、归档过期的。 | catalog 放在对话历史里，内容一变就换新的。 |
-| **限制** | 描述太含糊，模型就不会去加载。 | 自动改动需要钉选和暂存批准来把关。 | 每次换掉 catalog 都会往历史里多塞消息。 |
-| **设计原因** | skill 还要 fork、还要限制 tool，单纯读档不够用。 | 加载只是一半，store 本身还要能成长、能清理过时内容。 | session 跑到一半，skill 就可能变了。 |
+| **优点** | 塞得进 token 预算。skill 能 fork，还能限制 tool。 | curator 会整合新 skill、归档过期的。 | catalog 放在对话历史里，内容一变就换新的。 |
+| **限制** | 描述太含糊，模型就不会去加载。 | 自动改动需要钉选和分阶段批准来把关。 | 每次换掉 catalog 都会往历史里多塞消息。 |
+| **设计原因** | skill 还要 fork、还要限制 tool，单纯读文件不够用。 | 加载只是一半，store 本身还要能成长、能清理过时内容。 | session 跑到一半，skill 就可能变了。 |
 | **做法：skill format** | `SKILL.md` 文件夹，frontmatter 还能限制可用的 tool。 | 同样的形式，依分类文件夹整理。 | 一个文件夹或一个扁平文件。谁能调用写在 frontmatter。 |
-| **做法：load trigger** | invoke `Skill` tool 注入本文；动到符合的文件也会触发。 | `skill_view` 返回本文，并累计使用次数。 | 要用到的时候，一个 tool 才读取本文。 |
-| **做法：discovery** | built-in、user、project、plugin、MCP 来源。 | bundled、optional、user、plugin、hub 来源。 | 注册的 provider 叠在分层的 scope 上，根目录有排名。 |
+| **做法：load trigger** | 调用 `Skill` tool 会注入本文；动到符合的文件也会触发。 | `skill_view` 返回本文，并累计使用次数。 | 要用到的时候，一个 tool 才重新读取本文。 |
+| **做法：discovery** | built-in、user、project、plugin、MCP 来源。 | bundled、optional、user、plugin、hub 来源。 | provider 叠在分层的 scope 上，根目录有排名。 |
 
 ---
 

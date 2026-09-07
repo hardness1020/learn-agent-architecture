@@ -1,6 +1,6 @@
 # 21 · Loop engineering
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 重点不再是下一句 prompt，而是如何设计一套能自行启动、验证与改进的 loop。
 
@@ -157,7 +157,7 @@ loop 能搜的范围是一道阶梯。最底下那阶是 prompt 里的一条规�
 
 **在线执行，离线学习：**这两件事要分开。在线的 loop 只把任务跑完、把过程记下来。
 它不做提炼、不升级 skill，也不改 prompt。
-另外一个离线的 loop 才把很多趟执行一起读，找出反覆出现的失败，写出候选改动，验证它们，再发布成一个版本。
+另外一个离线的 loop 才把很多趟执行一起读，找出反复出现的失败，写出候选改动，验证它们，再发布成一个版本。
 
 分开之后，单独一次执行就改不动整个 agent。一条走运的路径不算规律。
 某个网页叫 agent 记住的话，更不算证据。
@@ -181,8 +181,8 @@ loop 能搜的范围是一道阶梯。最底下那阶是 prompt 里的一条规�
 | **优点** | verify 用程序编排，budget 是硬上限。 | 有 budget，改进也能回滚。 | 每趟 run 的帐单都有硬上限。 | 外层 loop 以 plugin 挂在公开的事件上。 |
 | **限制** | 改进 loop 在源代码中没有闭环。 | 没有内置的评分重试 loop。 | 只做了 budget 这一半。 | 没有东西检查成果，只有轮数当预算。 |
 | **设计原因** | 把外层 loop 当成一段可编排的程序。 | 目标是让改进闭合到 model。 | 一次 run 就是一个评分任务。 | loop 本身就是 plugin，控制自然挂在它上面。 |
-| **做法：verification** | verify 阶段用程序编排：judge panel。 | maker 和 checker 分工，加离线测试。 | 没有，SWE-bench 离线评分。 | 没有内置，做完了没由模型自己说。 |
-| **做法：event loop** | Cron、自订节奏唤醒、remote trigger。 | gateway cron 加受限 toolset。 | 没有，runner 排的是任务，不是时间。 | 提醒从 log 重放，以一个 turn 的形式进来。 |
+| **做法：verification** | verify 阶段用程序编排：judge panel。 | maker 和 checker 分工，加离线测试。 | 没有，SWE-bench 离线评分。 | 没有内置，做完了没，由模型自己说。 |
+| **做法：event loop** | Cron、自订节奏唤醒、remote trigger。 | cron 加受限 toolset。 | 没有，runner 排的是任务，不是时间。 | 提醒从 log 重放，以一个 turn 的形式进来。 |
 | **做法：improvement loop** | workflow 可断点续跑，从 cache 重放。 | run 会变成训练数据。 | 没有，只有 budget。 | 没有现成的，但接的地方都留好了。 |
 
 ---

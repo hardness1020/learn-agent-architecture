@@ -1,10 +1,10 @@
 # 13 · Background execution
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 把耗时工作移到后台执行，主 loop 可以先继续处理其他事。
 
-有些操作需要很长时间，例如安装依赖、建置、执行完整测试、整理 memory，或启动一个拥有自己 loop 的 subagent。
+有些操作需要很长时间，例如安装依赖、构建、执行完整测试、整理 memory，或启动一个拥有自己 loop 的 subagent。
 
 基本的 agent loop 会等工具调用完成，才进行下一次 model call。
 
@@ -123,7 +123,7 @@ ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `too
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **优点** | 吞吐量提升，也不再有闲置的等待。单纯的等待不会卡住任何东西。 | 同一个登记处管 shell、终端机和 child agent。 |
+| **优点** | 吞吐量提升，也不再有闲置的等待。单纯的等待不会卡住任何东西。 | 同一个 registry 管 shell、终端和 child agent。 |
 | **限制** | 结果可能较晚抵达，顺序也可能颠倒。runtime 要顾状态和清理。 | 叫醒闲着的 agent 会花掉模型轮次，所以得给它一个额度。 |
 | **设计原因** | 一个跑很久的指令不该冻结整个 agent。 | 工作跑完要让模型知道，而不是叫模型自己一直去问。 |
 | **做法：off-loop primitive** | 后台 shell task 和后台 agent task，subprocess 继续跑，输出被转导。 | 任何工具都能带一个「丢到后台跑」的标志，返回一个 job id。 |

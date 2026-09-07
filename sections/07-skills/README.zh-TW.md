@@ -1,8 +1,8 @@
 # 7 · Skills
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> skill 把一套專業工作流程包起來，只在任務需要時載入。
+> skill 是一包自成一體的專業知識：指令，加上需要用到的 script 和檔案，只在任務需要時載入。
 
 skill 可以讓通用 agent 在特定任務上具備專業能力。它打包一整套工作流程，包括要遵循的指令、可執行的 script，以及需要參考的檔案。
 agent 只有在任務用得到時才載入對應的 skill，因此可以擁有大量專門能力，又不必一開始就把所有內容塞進 context。
@@ -28,7 +28,7 @@ skill 系統必須做到：
 
 skill 使用 progressive disclosure。模型只會看到剛好足夠的資訊，來決定要不要載入更多。
 
-1. **Metadata：**來自 frontmatter 的 `name` 和 `description`，再加上這個 skill 的路徑。這份 catalog 只佔少量 token，所以一直放在 system prompt 裡。
+1. **Metadata：**來自 frontmatter 的 `name` 和 `description`，再加上這個 skill 的路徑。這份 catalog 很便宜，每個 turn 都跟著 system prompt 一起送。
 2. **Instructions：**`SKILL.md` 的本文。只有在某個任務需要這個 skill 時，模型才會去讀這個檔案。
 3. **Resources：**skill 資料夾裡的額外檔案。指令指向它們時，模型用同一個 file tool 讀取。
 
@@ -81,7 +81,7 @@ def write_skill(skills_dir, name, description, body) -> Path:   # src/skills.py
     return target
 ```
 
-- `WriteSkill` 是包住這個函式、面向模型的 tool。寫入 skill 會改動檔案系統，屬於有副作用的操作，所以第 3 章的權限閘門預設會先徵詢使用者；只有 allow 規則預先核准過，才會直接放行。
+- `WriteSkill` 是包住這個函式、面向模型的 tool。寫入 skill 是副作用，所以除非有規則預先核准，第 3 章的閘門會先問過。
 - 寫出來的檔案就是普通的 `SKILL.md`。沒有任何特殊標記：下一次 `load_skills` 掃描會把它當成一般的 skill 編入 catalog。
 - 名稱的解析和檢查方式跟 `read_tool` 檢查路徑一樣，所以不論讀或寫，都逃不出 skills 目錄。
 
@@ -115,9 +115,9 @@ def stale_skills(skills_dir, skills, now=None, stale_after=STALE_AFTER) -> list[
 
 ### 如何接進現有架構
 
-loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照樣進入 `messages[]`。
+loop 不用改。讀取 skill 會回傳一個 tool 結果，進到 `messages[]`。
 
-三層各有位置：catalog 放在 system prompt。skill 本文要等模型讀了 `SKILL.md`，才會進到對話裡。resource 檔案則等到真的用到時才讀。
+catalog 放在 system prompt。skill 本文要等模型讀了 `SKILL.md`，才會進到對話裡。resource 檔案則等到真的用到時才讀。
 
 載入後的 skill 文字就在 `messages[]` 裡，所以之後 context 不夠用時，它會跟其他訊息一起被壓縮（第 8 章）。skill 本文要寫短，大型參考資料改成指向檔案。
 
@@ -162,7 +162,7 @@ skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書�
 **整併是離線做的：**curator 是排程跑的，不是即時跑的。書裡叫它 sleep-time learning，分成五步：
 
 1. **觸發：**排程時間到、系統閒置，或 store 大小超過上限。
-2. **定位：**先對 store 做一次快照，後面每一步才都能回滾。
+2. **先定基準：**先對 store 做一次快照，後面每一步才都能回滾。
 3. **蒐集與合併：**讀使用記錄和最近幾次執行，把幾乎重複的 skill 併成一個，再把 candidate 收進來。
 4. **驗證與核准：**拿產生它們的那幾次執行，去檢查合併後的本文。沒過的就不收。
 5. **修剪與建索引：**依固定規則封存過期的 skill，然後重建 catalog。
@@ -178,12 +178,12 @@ skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **優點** | catalog 有預算上限。skill 能 fork，還能限制 tool。 | curator 會整併新 skill、封存過期的。 | catalog 放在對話歷史裡，內容一變就換新的。 |
-| **限制** | 描述太含糊，模型就不會去載入。 | 自動改動需要釘選和暫存核准來把關。 | 每次換掉 catalog 都會往歷史裡多塞訊息。 |
+| **優點** | 塞得進 token 預算。skill 能 fork，還能限制 tool。 | curator 會整併新 skill、封存過期的。 | catalog 放在對話歷史裡，內容一變就換新的。 |
+| **限制** | 描述太含糊，模型就不會去載入。 | 自動改動需要釘選和分階段核准來把關。 | 每次換掉 catalog 都會往歷史裡多塞訊息。 |
 | **設計原因** | skill 還要 fork、還要限制 tool，單純讀檔不夠用。 | 載入只是一半，store 本身還要能成長、能汰舊。 | session 跑到一半，skill 就可能變了。 |
 | **做法：skill format** | `SKILL.md` 資料夾，frontmatter 還能限制可用的 tool。 | 同樣的形式，依分類資料夾整理。 | 一個資料夾或一個扁平檔案。誰能呼叫寫在 frontmatter。 |
-| **做法：load trigger** | invoke `Skill` tool 注入本文；動到符合的檔案也會觸發。 | `skill_view` 回傳本文，並累計使用次數。 | 要用到的時候，一個 tool 才去現讀本文。 |
-| **做法：discovery** | built-in、user、project、plugin、MCP 來源。 | bundled、optional、user、plugin、hub 來源。 | 註冊的 provider 疊在分層的 scope 上，根目錄有排名。 |
+| **做法：load trigger** | 呼叫 `Skill` tool 會注入本文；動到符合的檔案也會觸發。 | `skill_view` 回傳本文，並累計使用次數。 | 要用到的時候，一個 tool 才去現讀本文。 |
+| **做法：discovery** | built-in、user、project、plugin、MCP 來源。 | bundled、optional、user、plugin、hub 來源。 | provider 疊在分層的 scope 上，根目錄有排名。 |
 
 ---
 

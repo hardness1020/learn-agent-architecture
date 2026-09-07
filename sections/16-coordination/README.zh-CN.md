@@ -1,25 +1,25 @@
 # 16 · Coordination
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> lead 依任务规模块成团队，让每位 agent 在独立 thread 上工作，再通过 inbox 协作。
+> lead 依任务规模组成团队，让每位 agent 在独立 thread 上工作，再通过共享的 inbox 协作。
 
-单一 agent 只有一个 context window，同一时间能处理的工作也有限。面对大型任务，往往需要多个 agent 同时进行。
+单一 agent 只有一个 context window，同一时间也只有一条在跑的工作线。面对大型任务，往往需要多个 agent 同时进行。
 
 subagent 适合处理范围明确的子任务，但一次性的 subagent 启动后，很难在执行途中持续沟通或调整方向。
 
 每增加一个 agent，就会增加 token 成本，也可能让多个 agent 对同一个文件做出互相冲突的修改。
-因此，第一个要解决的不是如何 spawn，而是团队结构：需要几个 agent、是否共享 context，以及谁负责指派工作。
+因此，第一个要决定的是团队结构：需要几个 agent、是否共享 context，以及谁负责指派工作。
 
-要让多个 agent 真正协作，系统必须提供稳定的身分、spawn 机制、可收发消息的 inbox，以及把权限请求送回用户的管道。
+要让多个 agent 真正协作，系统必须提供稳定的身份、spawn 机制、可收发消息的 inbox，以及把权限请求送回真人的管道。
 
 协调必须：
 
-1. 为每个 agent 提供稳定、可寻址的身分。
+1. 为每个 agent 提供稳定、可寻址的身份。
 2. 让 lead 依任务规模决定团队结构。
 3. 让每位成员在自己的 thread 上执行。
-4. 让成员主动读取 inbox 并采取行动，不必由 harness 逐步控制。
-5. 将需要批准的动作往上转交，直到用户做出决定。
+4. 让成员主动读取 inbox 并采取行动，不必由 script 逐步驱动。
+5. 把需要批准的动作往上转交给真人审核者。
 
 少了 coordination，大型工作只能按顺序处理，或拆成一群彼此无法沟通的 worker。
 
@@ -29,19 +29,19 @@ subagent 适合处理范围明确的子任务，但一次性的 subagent 启动�
 
 ![机制图](assets/16-coordination.png)
 
-每个 agent 都有自己的 inbox。传送消息时，内容会写进收件者的 inbox；等收件者主动读取时，消息才会进入它的工作流程。
+每个 agent 都有自己的 inbox。发送消息时，内容会写进收件者的 inbox；收件者 drain 自己的 inbox 时，消息才算送达。
 
-团队需要几个人、各叫什么名字，会由 lead 的 LLM 在执行时根据任务决定，而不是写死在程序里。lead 先调用 `TeamCreate` 组成团队，再 spawn 每一位成员。
+团队需要几个人、各叫什么名字，会由 lead 的 LLM 在执行时根据任务决定，而不是写死在脚本里。lead 先调用 `TeamCreate` 组成团队，再 spawn 每一位成员。
 
 lead 不会亲手启动队友。它调用 `SpawnTeammate`，由 harness 在后台 thread 上跑队友的 loop（第 13 章）。
-队友接着拉取自己的 inbox 并行动，没有任何程序在逐步驱动谁。
+队友接着拉取自己的 inbox 并行动，没有任何脚本在逐步驱动谁。
 
 demo 里没有中央 broker。有的是名字、inbox 路径与消息格式的共享惯例。
 
 - 每个 agent 拥有一个 inbox。
 - 一则消息有 sender、recipient 和 content。
 - lead 调用 `TeamCreate` 决定名单的规模与组成；`SpawnTeammate` 再启动每位成员。
-- lead 用 `SpawnTeammate` spawn 一个队友；那个队友在自己的 thread 上运作。
+- lead 用 `SpawnTeammate` spawn 一个队友；那个队友在自己的 thread 上运行。
 - `to="*"` 会 broadcast 给除了 sender 以外的每一位队友。
 - sender 写完就返回。它们不会 block 等待回复。
 - 队友每次 poll 都会读自己的 inbox，把新消息并入下一个 turn。
@@ -60,7 +60,7 @@ def team_tools(root, me, formed):                      # src/mailbox.py
     ...                                                # SendMessage stays inert until the team exists
 ```
 
-- 规模和名字都没有写死在程序里；两者都由 lead 的 LLM 依任务挑选。
+- 规模和名字都没有写死在脚本里；两者都由 lead 的 LLM 依任务挑选。
 - `SendMessage` 在 `TeamCreate` 执行前不会生效，所以 lead 必须先组成团队才能发送消息。
 - `formed` 是一个单槽的 holder（ponytail：一个 in-process 的团队登记表替身；可以用一个名单文件作为后端，让另一个 process 的队友加入）。
 
@@ -76,7 +76,7 @@ def teammate_tools(runtime, spawn_worker):             # src/mailbox.py
     return [Tool("SpawnTeammate", spawn, is_read_only=True, ...)]
 ```
 
-队友的 loop 是 `serve_mailbox`：拉取 inbox、行动、重复。它在被 spawn 出来的 thread 上运作，所以队友是自己对消息做反应，不是被程序排好每一步：
+队友的 loop 是 `serve_mailbox`：拉取 inbox、行动、重复。它在被 spawn 出来的 thread 上运行，所以队友是自己对消息做反应，不是被脚本排好每一步：
 
 ```python
 def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):   # src/mailbox.py
@@ -120,7 +120,7 @@ def send(self, frm, to, content):                      # src/mailbox.py
 - lock 把 read-modify-write 序列化，所以并行的 sender 不会漏掉消息。
 - `drain` 读取并清空一个 inbox。
 
-permission bubbling 是一种 approver 的实现。它把有闸门的调用通过同一个管道搬给用户：
+permission bubbling 是一种 approver 的实现。它把有闸门的调用通过同一个管道搬给真人：
 
 ```python
 def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
@@ -140,7 +140,7 @@ def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
     return approve
 ```
 
-1. 队友碰到一个有闸门的工具调用，但它自己的 loop 前面没有用户可以问。
+1. 队友碰到一个有闸门的工具调用，但它自己的 loop 前面没有真人可以问。
 2. approver 把一则 `permission_request` 送到 lead 的 inbox。
 3. lead 把它导向自己的审核 UI（这里是 `human` callback）。
 4. 裁决以 `permission_response` 的形式回到队友的 inbox。
@@ -154,7 +154,7 @@ approver 会 poll 自己的 inbox 直到 `timeout`，然后 deny：没有人回�
 
 ### 如何集成到现有架构
 
-demo 跑一个主 agent。lead 走一步，队友就自己运作起来：
+demo 跑一个主 agent。lead 走一步，队友就自己运行起来：
 
 ```python
 def spawn_worker(name, formed, model):                 # src/demo.py, module level
@@ -165,7 +165,7 @@ def spawn_worker(name, formed, model):                 # src/demo.py, module lev
 run_turn([...goal...], model, lead_reg, session)        # the one agent call in demo(): the lead
 ```
 
-- 程序唯一写死的输入是 lead 的目标。lead 用 `TeamCreate` 决定团队规模、用 `SpawnTeammate` spawn 每一位、用 `SendMessage` 委派。
+- 脚本唯一写死的输入是 lead 的目标。lead 用 `TeamCreate` 决定团队规模、用 `SpawnTeammate` spawn 每一位、用 `SendMessage` 委派。
 - `demo()` 跑一个 `run_turn`，也就是 lead 的。队友自己的 `run_turn` 位于 `spawn_worker`，只能通过 spawn 工具抵达。
 - 每个队友在第 13 章的 thread 上跑 `serve_mailbox`：拉取 inbox、工作、回复。回复数量由 lead 决定；主 process 只是等待。
 - `loop.py` 维持通用。折叠与拉取 loop 属于协调，在这个 wrapper 里完成，不在 `run_turn` 内部。
@@ -242,10 +242,10 @@ sender 的原始历史不放进去。那东西很长、里面都是走不通的�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **优点** | 队友能直接交谈，文件 inbox 还能跨 process。 | 子代可以从任何已连接的接口暂停、中断。 | 一支脚本就能在硬性上限之下开出大量子代。 |
-| **限制** | 文件 inbox 有 poll 和 lock 成本，内存 inbox 随 process 死。 | 没有对等 inbox，clarify 还会卡住自己的 thread。 | 子代彼此不能讲话，送消息也不会有回复。 |
+| **优点** | 队友能直接交谈，文件 inbox 还能跨 process。 | 子代可以从任何接口暂停、中断。 | 一个脚本就能在硬性上限之下开出大量子代。 |
+| **限制** | poll 和 lock 都有成本，内存 inbox 随 process 死。 | 没有对等 inbox，clarify 还会卡住自己的 thread。 | 子代彼此不能讲话，送消息也不会有回复。 |
 | **设计原因** | 队友彼此对等，需要 inbox 交谈，也需要一条送回人的路。 | 协调维持 parent 对 child。 | 协调就是归属关系，每个子代只有一个 parent。 |
-| **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暂停标志。 | 由模型写的脚本开出子代，长命的那种会常驻。 |
+| **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暂停标志。 | 由模型写的脚本开出子代，有些会常驻。 |
 | **做法：channel** | SendMessage 写进 inbox，也能 broadcast。 | completion queue 加 gateway 调用。 | 只有 parent 对 child。子代用 report 工具回话。 |
 | **做法：shared memory** | team task list 与团队 memory 目录。 | 共享的 session DB，外加 lineage 标记。 | parent 的工作目录。fork 还会复制它跑完的 turn。 |
 | **做法：permission bubbling** | remote 权限请求转成本地的审核提示。 | clarify 导向聊天平台，子代自动 deny 或 approve。 | 权限请求沿着 parent 这条线往上问。 |
@@ -255,7 +255,7 @@ sender 的原始历史不放进去。那东西很长、里面都是走不通的�
 ## 常见问题
 
 - **遗失消息的竞态：**两个 sender 同时写一个 inbox。用 lock 保护 read-modify-write。
-- **对等 deadlock：**agent 互相等待。把消息排入队列并在 turn 之间 drain，而不是用会 block 的传送。
+- **对等 deadlock：**agent 互相等待。把消息排入队列并在 turn 之间 drain，而不是用会 block 的发送。
 - **权限卡住：**队友没有 UI 可以问用户。把请求往上转给 lead 代问。
 - **create 之前就 spawn：**lead 在 `TeamCreate` 之前就 spawn 或传消息，于是没有名单。让两者在团队存在之前都保持无作用。
 - **孤儿队友：**被 spawn 的队友在工作做完后还一直 poll。为闲置等待设上界，或用第 17 章的 handshake 停止它。
@@ -267,7 +267,7 @@ sender 的原始历史不放进去。那东西很长、里面都是走不通的�
   写入时上 lock，或者存一个版本号，对不上就重试。
 - **语义冲突：**两边的写入都干净地套用了，结果还是坏的。一个 agent 把某个函数改了名字，另一个 agent 同时照旧名字加了调用。
   把工作拆开，别让两个 agent 管到同一件东西，或者只在一个点上合并。
-- **错误级联放大：**一个 agent 把某个事实搞错了。下一个 agent 照抄，再下一个又照抄，到后来看起来就像已经确认过的事。
+- **错误级联：**一个 agent 把某个事实搞错了。下一个 agent 照抄，再下一个又照抄，到后来看起来就像已经确认过的事。
   只看结论的审查者会觉得前后一致。要找人去对原始证据，而且不能找产出它的那个 agent。
 
 ---
@@ -277,7 +277,7 @@ sender 的原始历史不放进去。那东西很长、里面都是走不通的�
 [`src/`](src/) 承接第 15 章并加上：
 
 - [`mailbox.py`](src/mailbox.py)：具 locking 的命名 inbox、折叠、`serve_mailbox` loop、带 timeout 与默认 deny 的 bubbling，以及团队工具。
-- [`test.py`](src/test.py)：检查定址、broadcast、并行传送、折叠、bubbling（inline、异步与 timeout-deny）、mailbox loop，以及团队工具。
+- [`test.py`](src/test.py)：检查定址、broadcast、并行发送、折叠、bubbling（inline、异步与 timeout-deny）、mailbox loop，以及团队工具。
 - [`demo.py`](src/demo.py)：lead 走一步（`TeamCreate`、`SpawnTeammate`、`SendMessage`）；每个队友拉取自己的 inbox、跑一个有闸门的 shell 任务，然后回报。
 
 loop 与 subagent 路径不变。协调通过 spawn 队友、drain inbox、传入一个 approver 来包住 turn。

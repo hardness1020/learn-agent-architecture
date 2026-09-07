@@ -1,10 +1,10 @@
 # 8 · Context management
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 控制 context 的大小，让长时间 session 仍能稳定运作。
+> 让长 session 待在 context limit 以内。
 
-`messages[]` 会随执行时间持续成长。每个 tool 结果、assistant 回复和 user turn 都会增加内容，长时间 session 最后一定会逼近模型的 context limit。
+`messages[]` 会随执行时间持续增长。每个 tool 结果、assistant 回复和 user turn 都会增加内容，长时间 session 最后一定会逼近模型的 context limit。
 
 context management 会在下一次 model call 前整理旧内容，视情况删除、换成 stub、保存到外部，或浓缩成摘要，让 session 能继续使用。
 
@@ -16,10 +16,10 @@ context management 会在下一次 model call 前整理旧内容，视情况删�
 
 第 3 种情况称为 context rot。无关内容愈堆愈多，模型就愈难找到真正重要的信息。早在 context window 塞满之前，这件事就已经开始，agent 看起来仍能运作，但判断质量会逐渐下降。
 
-因此，压缩不只是为了省空间和成本。in-context learning 很大一部分是在检索信息：单一、明确的事实容易找到，散落在几十轮对话中的线索则很难重新拼起来。
+因此，压缩不只是为了省空间和成本。in-context learning 的运作比较像检索，不像推理：单一、明确的事实容易找到，散落在几十轮对话中的线索则很难重新拼起来。
 与其让模型每次都从头推导，不如先整理并保留结论。摘要做得好，即使 context window 还没满，也能提升回答质量。
 
-没有这一层，长任务终究会因 prompt 过大或信息过于混乱而失败。
+没有这一层，prompt 一旦塞不下，长任务就会失败。
 
 ---
 
@@ -27,7 +27,7 @@ context management 会在下一次 model call 前整理旧内容，视情况删�
 
 ![机制图](assets/08-context-management.png)
 
-在摘要之前先用低成本的 reducer。低成本的 reducer 是在地处理，而且大致上不损失信息。摘要则要付出一次 model call，而且可能遗失细节。
+在摘要之前先用低成本的 reducer。低成本的 reducer 只动局部，而且大致上不损失信息。摘要则要付出一次 model call，而且可能遗失细节。
 
 Claude Code 采用分层的顺序：
 
@@ -80,17 +80,17 @@ loop 仍然维持同样的不变条件：它用一个有效的 `messages[]` 调�
 Claude Code 和本章的 `_budget` 都是就地把过大的 tool 结果缩小，被切掉的那段就永远没了。
 
 deepseek-harness 从不动已经发生的事。session log 只会被附加，模型看到的 messages 只是这份 log 的一个投影。
-每次缩减都是再写一则事件，说明要替换掉哪一段，所以 session 续跑或 fork 之后，重放出来的画面一模一样。
+每次缩减都是再写一则事件，说明要替换掉哪一段，所以 session 续跑或 fork 之后，重放出来看到的内容一模一样。
 
 过大的 tool 输出走的是另一条路，而且更早。结果一超过内嵌上限，tool 一返回就直接送进 spill store。
-store 把完整文字存起来，返回一个位址。留在 context 里的只有头尾预览、那个位址，以及一句提示：要完整内容就去读或 grep 这个文件。
+store 把完整文字存起来，返回一个取回路径。留在 context 里的只有头尾预览、那个取回路径，以及一句提示：要完整内容就去读或 grep 这个文件。
 所以输出还在：模型需要剩下的部分时，自己去把文件要回来。
 
 [`src/spill.py`](src/spill.py) 就是这件事的精简版。它是对照用的 demo，没有接进 `manage()`，所以后面的章节照样沿用同一套 pass。
 
 ### 延伸阅读
 
-以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
+以下设计 `src/` 都没有实现，出自 ai-agent-book，也没有在下表的系统里验证过。
 
 **stub 每次都要是同一串字：**用来替换 tool 结果的那段文字也算在前缀里，所以它每次都要一模一样。
 第一次替换时就把它定下来，之后照抄，连 session 从磁盘还原回来也照抄。
@@ -98,7 +98,7 @@ stub 如果重新算过，带上新的时间戳或新的路径，前缀就变了
 
 **压缩和 cache 想要的刚好相反：**压缩要改写历史，cache 却是历史都不要动才划算。
 历史只要动过，改动点之后的 cache 就全部失效，下一次调用得重读整段前缀。
-每个 turn 都修一点，这笔帐就每个 turn 都要付。累积到 token 门槛再一次修完，只付一次。
+每个 turn 都修一点，就等于每个 turn 都要重建一次前缀。累积到 token 阈值再一次修完，只重建一次。
 不管走哪一种，压缩都跑在两次 API 调用之间，不能跑在一次调用里面。
 
 **这个 pass 也可以交给服务器做：**Claude API 的 context editing 会把比较旧的 tool 结果从前缀里拿掉，harness 这边一行代码都不用写。
@@ -123,23 +123,23 @@ stub 如果重新算过，带上新的时间戳或新的路径，前缀就变了
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **优点** | 长 session 能继续运行，缩减成本低，存下来的输出还能重读。 | 没有东西要调度、要调参，行为一眼就能看懂。 | 历史从不被销毁。 |
-| **限制** | 各个 pass 要讲究顺序。摘要可能丢掉之后要用的细节。 | 历史只会成长。run 拖得比预算久，window 塞爆就中止。 | log 在磁盘上只会长大，还得管锁和 fold。 |
+| **限制** | 各个 pass 要讲究顺序。摘要可能丢掉之后要用的细节。 | 历史只会增长。跑久了 window 塞爆，run 就挂掉。 | log 在磁盘上只会长大，还得管锁和 fold。 |
 | **设计原因** | 互动式 session 没有固定终点，window 迟早会满。 | 假设预算会先让 run 结束（见第 21 章）。 | log 才是事实，所以要缩的是投影，不是历史。 |
-| **做法：trigger** | token 门槛，外加 `prompt_too_long` 的后备。 | 每则 observation，在 render 时处理。 | 每一步都量一次压力，加上确认过的 overflow。 |
+| **做法：trigger** | token 阈值，外加 `prompt_too_long` 的后备。 | 每则 observation，在 render 时处理。 | 每一步都量一次压力，加上确认过的 overflow。 |
 | **做法：strategy** | 先跑低成本 reducer（存档、清成 stub），最后才摘要。 | 过长的输出只保留头尾，没有压缩。 | 先写出去、再修剪，最后一则摘要事件。 |
-| **做法：budget** | 保留 output 和安全缓冲空间。 | 每则 observation 上限一万字符。 | 依模型换算比例：0.8 触发压缩，保留 0.16。 |
+| **做法：budget** | 保留 output 和安全缓冲空间。 | 每则 observation 上限一万字符。 | 依路由到的模型各有比例：0.8 触发压缩，保留 0.16。 |
 
 ---
 
 ## 常见问题
 
 - **摘要漏掉需要的细节：**持久化完整输出，并在需要时重新读取文件。
-- **压缩反覆失败：**使用 retry 上限或断路器。
+- **压缩反复失败：**使用 retry 上限或断路器。
 - **单一巨大 turn 仍然 overflow：**对 `prompt_too_long` 做出反应，执行一次有界限的最后手段裁剪。
 - **pass 顺序错误而遗失数据：**在把旧结果 stub 化之前，先持久化大型结果。
 - **拆散的 tool 配对：**不要把一个 `tool_use` 和它相配的 `tool_result` 拆开。
 - **stub 文字每次都不一样：**preview 若带着新的时间戳或路径重新产生，前缀就变了，cache 直接失效。stub 字符串第一次生成后就固定下来。
-- **每个 turn 都修一点：**每次改动都会让改动点之后的 cache 失效，小修小补反而比一次修完贵。用门槛触发，成批处理。
+- **每个 turn 都修一点：**每次改动都会让改动点之后的 cache 失效，小修小补反而比一次修完贵。用阈值触发，成批处理。
 - **模型全盘相信摘要：**注入的状态摘要，模型会当成事实读，几乎不会回头查证。摘要里留下指向原始文件的线索，写错了才追得回来。
 
 ---

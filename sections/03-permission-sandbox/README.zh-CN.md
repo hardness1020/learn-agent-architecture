@@ -1,16 +1,16 @@
 # 3 · Permission & sandbox
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 每个动作真正影响系统前，都必须先通过检查。
 
 模型可以要求使用任何已启用的工具，permission 层则负责判断这次调用能不能真的执行。
 
-没有 permission gate 的工具运行环境，几乎等同于一个没人看管的远端 shell。
+没有 permission gate 的工具运行环境，几乎等同于一个没人看管的远程 shell。
 
-一次错误的工具调用就可能删除文件、泄漏机密，或推送错误的代码。单靠信任模型不能构成安全边界，程序必须在执行前检查每个请求。
+一次错误的工具调用就可能删除文件、泄漏机密，或推送错误的代码。单靠信任模型不能构成安全边界，代码必须在执行前检查每个请求。
 
-原因很简单：模型读到的内容不一定是你写的。网页、issue 留言或 repo 里的文件，都可能暗藏操控 agent 的指令。
+原因很简单：模型会读到别人写的文字。网页、issue 留言或 repo 里的文件，都可能暗藏操控 agent 的指令。
 风险取决于三项能力：agent 能读取私密数据、会接触不可信内容，而且能把数据送到外部。
 只有其中两项时，风险还能控制；三项同时出现，恶意内容就可能诱使 agent 读取机密并外传。这个组合称为 lethal trifecta。
 
@@ -25,7 +25,7 @@ permission 层必须做到：
 3. 当高风险的调用尚未预先批准时，询问用户。
 4. 当调用真的执行时，限制它造成的损害。
 
-没有这一层，一次错误的工具调用就可能造成无法回复的后果。
+没有这一层，一次错误的工具调用就可能造成无法恢复的副作用。
 
 ---
 
@@ -109,14 +109,14 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 解法是连路线一起管，不是只管终点。就算重建出来的数据表是对的，砍掉重建这个动作照样要挡。
 代价是真的该重建的时候，也得找人来批准。
 
-**沙箱挡掉哪些东西：**gate 也会判断错。沙箱的作用，就是让判断错的那次 `allow` 不要付出太大代价。有三个限制做掉大部分的工。
+**沙箱挡掉哪些东西：**gate 也会判断错。沙箱的作用，就是让判断错的那次 `allow` 不要付出太大代价。三个限制就挡掉大部分风险。
 
 - **Egress：**网络默认挡掉，放行的流量走一个握有 host 允许列表的 proxy。
-  三只脚里，这一只砍起来最便宜。agent 照样读代码、照样写文件，只是哪里都送不出去。
+  三项能力里，这一项最容易切掉。agent 照样读代码、照样写文件，只是哪里都送不出去。
 - **Mount：**源代码用只读挂载。凭证文件一个都不要挂。只给一个可写的工作目录，其他都不给。
   agent 打不开的文件，就外泄不出去。
 - **Quota：**CPU、内存、磁盘、wall clock 时间都设上限。踩到上限的时候，回一个错误当 tool result，
-  不要无声把 process 杀掉。模型读得到 timeout，就知道换一条短一点的指令。无声杀掉，它什么都读不到。
+  不要悄悄把 process 杀掉。模型读得到 timeout，就知道换一条短一点的指令。悄悄杀掉，它什么都读不到。
 
 **要问用户，但不要让他等两次：**gate 返回 `ask`，用户现在就在等。如果检查本身也慢，那在提示框出现以前，他已经先等过一次了。
 推测式检查把前面那一次等待拿掉。顺序是这样：
@@ -136,13 +136,13 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **优点** | mode、有序规则与沙箱化提供精确的控制。 | 几分钟就能审计完。拒绝会落回对话，模型读得到原因。 | 拒绝只会收紧，沙箱判定 fail closed。 |
-| **限制** | 要推敲的状态很多。bypass 和预先批准的路径都必须保持狭窄。 | 对每条指令一视同仁，而且什么都不记。 | 政策分散在 guard、approval、沙箱和 preset 之间。 |
+| **优点** | mode、有序规则与沙箱化提供精确的控制。 | 几分钟就能审计完。拒绝会反馈给模型。 | 拒绝只会收紧，沙箱判定 fail closed。 |
+| **限制** | 要推敲的状态很多。bypass 和预先批准的路径都必须保持狭窄。 | 对每条指令一视同仁，而且什么都不记。 | 策略分散在 guard、approval、沙箱和 preset 之间。 |
 | **设计原因** | 每次调用都问会造成批准疲劳，所以系统会把批准记下来。 | 损害交给环境去限制，一个确认提示加一份 regex 列表就够了。 | 每个关注点都是自己独立的 fail-closed 服务。 |
-| **做法：gate point** | 每个工具执行前。Web、MCP 与远端执行各有批准路径。 | 每一步的指令执行前。按 Enter 就批准，留言就是拒绝。 | 先跑 pre-execute 事件，再跑只会拒绝的 guard。 |
+| **做法：gate point** | 每个工具执行前。Web、MCP 与远程执行各有批准路径。 | 每一步的指令执行前。按 Enter 就批准，留言就是拒绝。 | 先跑 pre-execute 事件，再跑只会拒绝的 guard。 |
 | **做法：permission modes** | Default、edit-approved、plan、deny 与 bypass。 | `human`、`confirm` 与 `yolo`，执行期可以切换。 | 沙箱 mode 加上 ask 或 never，打包成 preset。 |
 | **做法：sandbox** | Bash 可以在沙箱内执行。 | 环境 class 就是沙箱：主机本身、容器，或包住执行。 | provider 逐次把 argv 包起来，拒绝会分类好读回来。 |
-| **做法：rule persistence** | 规则依优先序合并，可存到 session 或 settings。 | 白名单 regex 只写在 config，符合的指令跳过确认。 | 旋钮变动是 log 事件，重放折叠出政策。 |
+| **做法：rule persistence** | 规则依优先序合并，可存到 session 或 settings。 | config 里的 regex，符合就跳过确认。 | 旋钮变动是 log 事件，重放折叠出策略。 |
 
 ---
 
@@ -151,11 +151,11 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 - **Pattern-match bypass：**字符串式的 deny 列表会漏掉 shell 的各种变体。先把指令解析出来，看它实际会做什么，再让沙箱挡在解析器后面。
 - **Mode 开得太宽：**一条范围过大的 allow 规则或 bypass mode，可能让后续的高风险调用悄悄执行。限缩 bypass 的范围，并让目前的 mode 显示出来。
 - **批准疲劳：**每次调用都询问，会训练用户不看内容就批准。预先批准低风险的类别，但让破坏性动作维持明确询问。
-- **subagent 内的无声拒绝：**子 agent 可能没有终端机可以询问。应把提示往上转给父 agent 代问，而不是无声失败。
-- **沙箱被停用：**若一个被允许的指令在沙箱外执行，permission 提示就是最后一道检查。任何未沙箱化的路径都要用政策挡在后面。
+- **subagent 内的静默拒绝：**子 agent 可能没有终端可以询问。应把提示往上转给父 agent 代问，而不是静默失败。
+- **沙箱被停用：**若一个被允许的指令在沙箱外执行，permission 提示就是最后一道检查。任何未沙箱化的路径都要用策略挡在后面。
 - **被批准的调用照样外泄：**每一次调用单独看都过得了 gate，整个 session 合起来却还是读到机密又把它送出去。
   网络默认就挡掉，第三种能力根本没得用。
-- **验得过但很破坏：**砍掉重建也能通过结果检查，因为终态是对的。要检查的是动作，不是只有终态。
+- **通过验证但具破坏性：**砍掉重建也能通过结果检查，因为终态是对的。要检查的是动作，不是只有终态。
 - **memory 被下毒：**注入到 memory 文件里的指令，之后每一次 session 都会被读回来。把存下来的 memory 当成不可信的内容，绝不当成操作者的规则。
 
 ---
@@ -183,7 +183,7 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
   `docs/subsystems/tools.md`、`docs/subsystems/approval.md`、`docs/subsystems/sandbox.md`、`docs/subsystems/permission-presets.md`、
   `packages/sandbox/sandbox-local/README.md`、`packages/shell/bash-sandbox/README.md`。
 - [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
-  memory 把攻击放大的那个维度、沙箱的 egress 与 mount、quota 政策、语义式的指令解析、推测式 permission 检查，
+  memory 把攻击放大的那个维度、沙箱的 egress 与 mount、quota 策略、语义式的指令解析、推测式 permission 检查，
   以及管路径而不是只管结果。这几项设计只有这一个来源。
 - [The lethal trifecta for AI agents](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)（Simon Willison）：
   私密数据、不可信内容、对外通讯，这三种能力不能凑在一起。

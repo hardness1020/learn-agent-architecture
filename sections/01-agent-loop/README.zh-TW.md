@@ -1,10 +1,10 @@
 # 1 · Agent Loop
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> loop 會反覆呼叫模型、執行工具，再把結果送回去，直到這一輪完成。
+> 一個 loop 反覆呼叫模型，直到模型給出答案或要求使用工具。
 
-一般的模型呼叫就是一問一答：送出 messages，收到一次回應，流程便結束。
+一般的模型呼叫就是一問一答：送出 messages，收到一次回應。
 
 agent 不只要取得回應，還要執行模型要求的工具，把結果加回對話，再呼叫一次模型。因此，同一份 `messages[]` 會在整個輪次中持續累積內容。
 
@@ -27,10 +27,10 @@ agent 不只要取得回應，還要執行模型要求的工具，把結果加�
 
 可以把它想成一個聊天視窗。你問「台北現在天氣如何？要不要帶傘？」，模型可能先查目前天氣，再查降雨機率，最後才整理成答案。
 **所以同一個輪次裡，模型往往被呼叫好幾次，中間穿插各種工具呼叫。**
-從發問到收到完整答案的整段流程，就是**內層 loop**，也就是一個使用者輪次（turn）。它會呼叫模型、檢查 `stop_reason`、視需要執行工具並加入結果，直到模型給出最終答案。
+從發問到收到完整答案的整段流程，就是內層 loop，也就是一個使用者輪次（turn）。它會呼叫模型、檢查 `stop_reason`、視需要執行工具並加入結果，直到模型給出最終答案。
 
 接著你在同一個視窗再問「那明天呢？」，這就是新的一輪。
-負責把多個輪次串成完整對話的，則是**外層 loop**。每一輪都會加到同一份 `messages[]`，所以當你接著問「那明天呢？」，模型仍然知道前面談的是台北天氣。
+負責把一輪接一輪串成完整對話的，則是外層 loop。每一輪都會加到同一份 `messages[]`，所以模型回答明天的天氣時，仍然知道你問的是台北。
 
 內層 loop 就是拿著呼叫端手上那份 `messages[]`，把一輪跑完：
 
@@ -85,11 +85,11 @@ for user_text in turns:                              # the outer loop: one itera
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **優點** | 能串流進度、把關副作用，還能平行執行工具。 | loop 很小，容易閱讀與稽核。 | loop 可以整個換掉，每個階段都能攔截，log 可以重放。 |
-| **限制** | loop 包在一個更大的 runtime 裡。 | 無法把關副作用、串流進度，或平行執行工具。 | 活動零件最多。得先懂 turn、step、inbox 這套詞彙。 |
+| **優點** | 能即時吐出進度、把關副作用，還能平行執行工具。 | loop 很小，容易閱讀與稽核。 | loop 可以整個換掉，每個階段都能攔截，log 可以重放。 |
+| **限制** | loop 包在一個更大的 runtime 裡。 | 無法把關副作用，不能即時吐出進度，也不能平行執行工具。 | 活動零件最多。得先懂 turn、step、inbox 這套詞彙。 |
 | **設計原因** | 核心分支保持不變，功能都加在外圍。 | 小 loop 本身就是目的。偵測任務是否完成的是環境，不是模型。 | loop 就是眾多 plugin 裡的一個。 |
-| **做法：loop driver** | 一個 async generator。每個工具透過同一份契約接進 dispatch。 | 一個 while loop。每一步跟模型要一道指令，再執行。 | 一個可換掉的 plugin，跑在一份 durable 事件 log 上。 |
-| **做法：stop signal** | `stop_reason: end_turn`。 | 由環境偵測提交標記，附加一則 `role: "exit"` 訊息。 | 沒有待處理項目、檢查點沒有攔截，或某個 tool result 直接結束這一輪。 |
+| **做法：loop driver** | 一個 async generator。每個工具都透過同一份契約接上來。 | 一個 while loop。每一步跟模型要一道指令，再執行。 | 一個可換掉的 plugin，跑在一份 durable 事件 log 上。 |
+| **做法：stop signal** | `stop_reason: end_turn`。 | 由環境偵測提交標記，附加一則 `role: "exit"` 訊息。 | 沒有待處理項目、檢查點沒有擋著，或某個 tool result 直接結束這一輪。 |
 | **做法：parallel tools** | 有。同一次模型輪次中的工具呼叫可以平行執行。 | 沒有，action 依序執行。 | 有。exclusive 呼叫形成 barrier，安全呼叫共用一個有上限的池。 |
 | **做法：streaming** | 有。模型 token、工具呼叫與工具結果發生的當下就逐一送出。 | 沒有。 | 有。串流 chunk 以 durable 事件寫進 session log。 |
 
@@ -98,7 +98,7 @@ for user_text in turns:                              # the outer loop: one itera
 ## 常見問題
 
 - **沒有停止條件：**一個 bug 或工具 loop 可能永遠跑下去。用最大步數或 token 上限。
-- **loop 中途 context overflow：**`messages[]` 只會成長。第 8 章加上 context 管理。
+- **loop 中途 context overflow：**`messages[]` 只會變長。第 8 章加上 context 管理。
 - **部分工具失敗：**失敗的工具仍必須回傳一個 `tool_result`，模型才能復原。
 - **結果遺失：**丟掉 assistant 的工具呼叫或工具結果任何一個，都會破壞 transcript。兩者都要附加。
 
@@ -109,7 +109,7 @@ for user_text in turns:                              # the outer loop: one itera
 [`src/`](src/) 從這裡開啟整條鏈：
 
 - [`loop.py`](src/loop.py)：內層 loop 與共享的 `messages[]`。
-- [`demo.py`](src/demo.py)：兩輪的即時 demo。第 2 輪仰賴第 1 輪仍留在緩衝區裡。
+- [`demo.py`](src/demo.py)：兩輪的連線 demo。第 2 輪仰賴第 1 輪仍留在緩衝區裡。
 - [`test.py`](src/test.py)：針對工具 dispatch、最終文字與多輪狀態的離線檢查。
 
 第 2 到 11 章會把這份 `src/` 帶著往前走，持續演進 `loop.py`，並在每一章加上一個檔案。

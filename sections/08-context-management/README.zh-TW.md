@@ -1,8 +1,8 @@
 # 8 · Context management
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 控制 context 的大小，讓長時間 session 仍能穩定運作。
+> 讓長 session 待在 context limit 以內。
 
 `messages[]` 會隨執行時間持續成長。每個 tool 結果、assistant 回覆和 user turn 都會增加內容，長時間 session 最後一定會逼近模型的 context limit。
 
@@ -16,10 +16,10 @@ context management 會在下一次 model call 前整理舊內容，視情況刪�
 
 第 3 種情況稱為 context rot。無關內容愈堆愈多，模型就愈難找到真正重要的資訊。早在 context window 塞滿之前，這件事就已經開始，agent 看起來仍能運作，但判斷品質會逐漸下降。
 
-因此，壓縮不只是為了省空間和成本。in-context learning 很大一部分是在檢索資訊：單一、明確的事實容易找到，散落在幾十輪對話中的線索則很難重新拼起來。
+因此，壓縮不只是為了省空間和成本。in-context learning 的運作比較像檢索，不像推理：單一、明確的事實容易找到，散落在幾十輪對話中的線索則很難重新拼起來。
 與其讓模型每次都從頭推導，不如先整理並保留結論。摘要做得好，即使 context window 還沒滿，也能提升回答品質。
 
-沒有這一層，長任務終究會因 prompt 過大或資訊過於混亂而失敗。
+沒有這一層，prompt 一旦塞不下，長任務就會失敗。
 
 ---
 
@@ -27,7 +27,7 @@ context management 會在下一次 model call 前整理舊內容，視情況刪�
 
 ![機制圖](assets/08-context-management.png)
 
-在摘要之前先用低成本的 reducer。低成本的 reducer 是在地處理，而且大致上不損失資訊。摘要則要付出一次 model call，而且可能遺失細節。
+在摘要之前先用低成本的 reducer。低成本的 reducer 只動局部，而且大致上不損失資訊。摘要則要付出一次 model call，而且可能遺失細節。
 
 Claude Code 採用分層的順序：
 
@@ -80,17 +80,17 @@ loop 仍然維持同樣的不變條件：它用一個有效的 `messages[]` 呼�
 Claude Code 和本章的 `_budget` 都是就地把過大的 tool 結果縮小，被切掉的那段就永遠沒了。
 
 deepseek-harness 從不動已經發生的事。session log 只會被附加，模型看到的 messages 只是這份 log 的一個投影。
-每次縮減都是再寫一則事件，說明要替換掉哪一段，所以 session 續跑或 fork 之後，重放出來的畫面一模一樣。
+每次縮減都是再寫一則事件，說明要替換掉哪一段，所以 session 續跑或 fork 之後，重放出來看到的內容一模一樣。
 
 過大的 tool 輸出走的是另一條路，而且更早。結果一超過內嵌上限，tool 一回傳就直接送進 spill store。
-store 把完整文字存起來，回傳一個位址。留在 context 裡的只有頭尾預覽、那個位址，以及一句提示：要完整內容就去讀或 grep 這個檔案。
+store 把完整文字存起來，回傳一個取回位置。留在 context 裡的只有頭尾預覽、那個取回位置，以及一句提示：要完整內容就去讀或 grep 這個檔案。
 所以輸出還在：模型需要剩下的部分時，自己去把檔案要回來。
 
 [`src/spill.py`](src/spill.py) 就是這件事的精簡版。它是對照用的 demo，沒有接進 `manage()`，所以後面的章節照樣沿用同一套 pass。
 
 ### 延伸閱讀
 
-以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也沒有在下表的系統裡驗證過。
 
 **stub 每次都要是同一串字：**用來取代 tool 結果的那段文字也算在前綴裡，所以它每次都要一模一樣。
 第一次替換時就把它定下來，之後照抄，連 session 從硬碟還原回來也照抄。
@@ -98,7 +98,7 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 
 **壓縮和 cache 想要的剛好相反：**壓縮要改寫歷史，cache 卻是歷史都不要動才划算。
 歷史只要動過，改動點之後的 cache 就全部失效，下一次呼叫得重讀整段前綴。
-每個 turn 都修一點，這筆帳就每個 turn 都要付。累積到 token 門檻再一次修完，只付一次。
+每個 turn 都修一點，就等於每個 turn 都要重建一次前綴。累積到 token 門檻再一次修完，只重建一次。
 不管走哪一種，壓縮都跑在兩次 API 呼叫之間，不能跑在一次呼叫裡面。
 
 **這個 pass 也可以交給伺服器做：**Claude API 的 context editing 會把比較舊的 tool 結果從前綴裡拿掉，harness 這邊一行程式都不用寫。
@@ -123,11 +123,11 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **優點** | 長 session 撐得下去，縮減成本低，存下來的輸出還能重讀。 | 沒有東西要調度、要調參，行為一眼就能看懂。 | 歷史從不被銷毀。 |
-| **限制** | 各個 pass 要講究順序。摘要可能丟掉之後要用的細節。 | 歷史只會成長。run 拖得比預算久，window 塞爆就中止。 | log 在硬碟上只會長大，還得管鎖和 fold。 |
+| **限制** | 各個 pass 要講究順序。摘要可能丟掉之後要用的細節。 | 歷史只會成長。跑久了 window 塞爆，run 就掛掉。 | log 在硬碟上只會長大，還得管鎖和 fold。 |
 | **設計原因** | 互動式 session 沒有固定終點，window 遲早會滿。 | 假設預算會先讓 run 結束（見第 21 章）。 | log 才是事實，所以要縮的是投影，不是歷史。 |
 | **做法：trigger** | token 門檻，外加 `prompt_too_long` 的後備。 | 每則 observation，在 render 時處理。 | 每一步都量一次壓力，加上確認過的 overflow。 |
 | **做法：strategy** | 先跑低成本 reducer（存檔、清成 stub），最後才摘要。 | 過長的輸出只保留頭尾，沒有壓縮。 | 先寫出去、再修剪，最後一則摘要事件。 |
-| **做法：budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 | 依模型換算比例：0.8 觸發壓縮，保留 0.16。 |
+| **做法：budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 | 依路由到的模型各有比例：0.8 觸發壓縮，保留 0.16。 |
 
 ---
 
