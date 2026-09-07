@@ -1,12 +1,12 @@
 # 4 · Hooks
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > hook 讓你在 loop 的固定節點插入額外行為。
 
 hook 是可以自行設定的 callback，能在工具呼叫前後、prompt 送出時，或 session 開始與結束時執行。
 
-記錄、驗證、通知和簡單的政策檢查都很適合用 hook。少了這層擴充點，每加入一種行為都得修改 loop，甚至另外維護一份分支。
+記錄、驗證、通知和簡單的策略檢查都很適合用 hook。少了這層擴充點，每加入一種行為都得修改 loop，甚至另外維護一份分支。
 
 hook 的價值在於讓 loop 保持精簡。loop 只需要公開固定的生命週期事件，其他行為再掛到對應事件上。
 
@@ -16,7 +16,7 @@ hook 的價值在於讓 loop 保持精簡。loop 只需要公開固定的生命�
 
 ![機制圖](assets/04-hooks.png)
 
-`Hooks` 物件會把事件名稱對應到一組 callback。loop 不必直接知道有哪些自訂檢查，只要由 `_dispatch` 在正確的時間觸發具名事件。
+`Hooks` 物件會把事件名稱對應到一組 callback。loop 不會直接呼叫自訂檢查，而是由 `_dispatch` 觸發具名事件。
 
 在工具執行方面，有兩個重要的點：
 
@@ -60,7 +60,7 @@ hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 - 被擋下或被拒絕的呼叫永遠不會抵達 `run_tool`。
 - `PostToolUse` 只在成功執行之後才會跑。
 - hook 可以收緊 permission 的結果，但不應該放寬它。
-- 在 Claude Code 中，`resolveHookPermissionDecision` 會把 hook 輸出和以規則為基礎的 permission 加以協調。
+- 在 Claude Code 中，`resolveHookPermissionDecision` 會把 hook 輸出和規則型 permission 對齊。
 
 demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下 `rm -rf`。
 
@@ -107,20 +107,20 @@ dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **優點** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
-| **限制** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
+| **優點** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和策略檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
+| **限制** | 固定的事件清單同時也是它的界限。hook 只能在有事件的地方攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分，也不能改寫工具輸入。 |
 | **設計原因** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充用的介面，就是 harness 自己在跑的那套事件系統。 |
-| **做法：hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
-| **做法：fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，位在只會拒絕的 guard 之前。 |
-| **做法：can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
+| **做法：hook events** | 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
+| **做法：fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，排在只會拒絕的 guard 前面。 |
+| **做法：can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和規則型 permission 對齊。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
 
 ---
 
 ## 常見問題
 
-- **hook 繞過 permission：**hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照以規則為基礎的 permission 來解析。
+- **hook 繞過 permission：**hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照規則型 permission 來裁決。
 - **Stop hook 無限 loop：**一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
-- **hook 設定在 session 中途改變：**某個程序可能在啟動後修改 settings。要對 hook 設定做一次快照。
+- **hook 設定在 session 中途改變：**某個行程可能在啟動後修改 settings。要對 hook 設定做一次快照。
 - **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
 - **診斷訊息淹沒結果：**整個專案跑一次 lint，回來的文字可能比寫入本身還多。只檢查剛改過的那個檔案，加回去的量也要設上限。

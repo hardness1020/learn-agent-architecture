@@ -1,6 +1,6 @@
 # 12 · Task system
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 把工作存成可持久化的 task，连同依赖关系一起管理。
 
@@ -44,7 +44,7 @@ def create(self, subject, blocked_by=()):              # src/tasks.py
     return task
 ```
 
-`claim` 有加锁。这让「先检查再配置」在多个 worker 之间也安全：
+`claim` 有加锁。这让「先检查再设定」在多个 worker 之间也安全：
 
 ```python
 def claim(self, tid, owner):                           # src/tasks.py
@@ -85,7 +85,7 @@ loop 没有改变。model 就像调用其他任何工具一样，调用 `TaskCre
 | **设计原因** | 放在内存里的列表会跟着 process 消失，计划得活得比它久。 | session log 是唯一的事实来源，所以 task 状态就是一连串事件。 |
 | **做法：task record** | 每个 task 一个 JSON 文件：id、subject、status、owner 和边。 | 一份整份列表的快照，加上一个 goal，带 phase 和轮数上限。 |
 | **做法：dependencies** | `blockedBy` 和 `blocks` 两种边。阻挡条件没清完，认领会被拒绝。 | 没有。顺序就只看列表本身的排列。 |
-| **做法：persistence** | 每个 task 一个档，外加已发出的最大 id。一个开关决定要不要替换 todo list。 | session 事件，加载时重放。自动续跑的开关从不写进磁盘。 |
+| **做法：persistence** | 每个 task 一个文件，外加已发出的最大 id。一个开关决定要不要替换 todo list。 | session 事件，加载时重放。自动续跑的开关从不写进磁盘。 |
 | **做法：lifecycle** | `pending -> in_progress -> completed`，认领动作靠一把锁序列化。 | goal 的 phase：active、paused、blocked、complete。要改得由人出手。 |
 
 ---

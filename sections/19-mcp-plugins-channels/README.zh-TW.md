@@ -1,8 +1,8 @@
 # 19 · MCP / plugins / channels
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 透過標準 protocol，讓 harness 不改核心程式也能連接外部能力。
+> 能力不夠？再插上更多。harness 透過一套標準 protocol 接到外面的世界。
 
 harness 能做什麼，取決於它有哪些工具。但每個內建工具都必須預先定義 input schema、執行邏輯和錯誤處理，不可能涵蓋所有外部服務。
 
@@ -13,7 +13,7 @@ MCP（Model Context Protocol）是一套用來解決這個問題的開放標準�
 
 這樣一來，不必修改 harness 核心，就能替 agent 加入 Jira 或部署工具。沒有 MCP，agent 的能力只能停留在安裝時內建的工具集合。
 
-除了 MCP，本章也會介紹建立在它之上的兩個機制：plugin 把 server、hook 和 skill 包成可一次安裝的套件；channel 則讓 server 主動把訊息推回 agent。兩者共用同一套 protocol。
+有兩個機制建立在它之上。plugin 把 server、hook 和 skill 包成可一次安裝的套件；channel 則讓 server 主動把訊息推回 agent。兩者共用同一套 protocol。
 
 ---
 
@@ -75,7 +75,7 @@ def wrap(server, spec, call):
 ```
 
 - `tool_name` 為每個工具加上命名空間；`normalize` 把任何落在 `[a-zA-Z0-9_-]` 之外的字元換成 `_`，以符合 API 名稱樣式。
-- `run` 捕捉了裸工具名與 server 的 `call`，所以 dispatch 被包裝的 `Tool` 時會透過 transport 回呼過去。
+- `run` 把裸工具名和 server 的 `call` 記在身上，所以 dispatch 被包裝的 `Tool` 時會透過 transport 回呼過去。
 - `readOnlyHint` annotation 成為 `is_read_only`，這正是權限 gate（第 3 章）用來決定放行或詢問的依據。
 
 ### 本章新增：探索與合併
@@ -142,7 +142,7 @@ for t in mcp.connect("kb", KBServer()):                # discover, wrap, merge
 run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 ```
 
-- 模型在它的工具清單裡看到 `mcp__kb__search` 就在任何內建工具旁邊，並呼叫它；它永遠不會得知是誰寫了這個工具。
+- `mcp__kb__search` 就出現在內建工具旁邊，模型在工具清單裡看到就直接呼叫。它永遠不會得知是誰寫了這個工具。
 - 這個工具是唯讀的，所以 gate 不提示就放行。一個具破壞性的工具則會詢問，或由一條以完整名稱為鍵的規則預先核准。
 - loop 不變。MCP 只是往池裡加工具；下游的一切都是第 2 章的 dispatch 與第 3 章的 gating。
 
@@ -154,7 +154,7 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 - **Tools** 是動作。模型自己挑一個來呼叫。`tools/list` 回傳的就是這些，上面的程式碼包的也是它們。
 - **Resources** 是可以讀的資料，每一筆都有一個 URI：一個檔案、一張表、一頁 wiki。client 把它抓下來，把內容放進 context。模型不會去呼叫它。
-- **Prompts** 是 server 給的範本。它通常是使用者可以下的一個指令，不是模型自己挑的東西。
+- **Prompts** 是 server 給的範本。它通常是使用者可以執行的一個指令，不是模型自己挑的東西。
 
 **resource 不會出現在工具清單上：**Claude Code 不會把它們一個一個公告出去，它只放兩個工具，一個列出 resource，一個把 resource 讀出來。
 所以一個放了上千份文件的 server，在工具清單裡還是只佔兩格。
@@ -183,11 +183,11 @@ harness 如何伸手觸及自身之外。
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **優點** | 任何服務、任何語言都接得上，不用改 harness。 | 其他 client 能把它當 MCP server 來用。 | server 就是一份設定，不重啟也能換掉一台。 |
-| **限制** | 每個 server 都是新的攻擊面，annotation 還是自己報的。 | channel 誰都能發：垃圾訊息，想操縱 agent 的話也一樣。 | 只接工具，也沒有聊天 channel 能把訊息推進來。 |
-| **設計原因** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server。 | 每樣東西都是 plugin，MCP server 也只是其中一個。 |
+| **限制** | 每個 server 都是新的攻擊面，annotation 還是自己報的。 | channel 誰都能發：可能是垃圾訊息，也可能是想操縱 agent 的文字。 | 只接工具，也沒有聊天 channel 能把訊息推進來。 |
+| **設計原因** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server。 | 每樣東西都是 plugin，server 也只是其中一個。 |
 | **做法：transports** | 六種，從本地 stdio 到遠端 http，各連各的池。 | MCP 雙向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一個 plugin。 |
 | **做法：plugin format** | 一個 plugin 打包 server、hook、skill，按優先序合併。 | 一份 manifest 加一個註冊進入點。 | 一列一列的設定。patch 用 id 整列換掉。 |
-| **做法：tool pool assembly** | 複製、加命名空間，annotation 成為 gate 的權限提示。 | plugin 與 MCP 工具進同一個 registry。 | 一台 server 的工具整批換上，出錯就整批回滾。 |
+| **做法：tool pool assembly** | 複製、加命名空間，annotation 成為 gate 的權限提示。 | plugin 與 MCP 工具進同一個 registry。 | 一台 server 的工具整批換上，或是整批回滾。 |
 
 ---
 

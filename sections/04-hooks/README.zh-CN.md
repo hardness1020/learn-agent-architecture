@@ -1,12 +1,12 @@
 # 4 · Hooks
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > hook 让你在 loop 的固定节点插入额外行为。
 
 hook 是可以自行配置的 callback，能在工具调用前后、prompt 送出时，或 session 开始与结束时执行。
 
-记录、验证、通知和简单的政策检查都很适合用 hook。少了这层扩展点，每加入一种行为都得修改 loop，甚至另外维护一份分支。
+记录、验证、通知和简单的策略检查都很适合用 hook。少了这层扩展点，每加入一种行为都得修改 loop，甚至另外维护一份分支。
 
 hook 的价值在于让 loop 保持精简。loop 只需要公开固定的生命周期事件，其他行为再挂到对应事件上。
 
@@ -16,7 +16,7 @@ hook 的价值在于让 loop 保持精简。loop 只需要公开固定的生命�
 
 ![机制图](assets/04-hooks.png)
 
-`Hooks` 对象会把事件名称对应到一组 callback。loop 不必直接知道有哪些自订检查，只要由 `_dispatch` 在正确的时间触发命名事件。
+`Hooks` 对象会把事件名称对应到一组 callback。loop 不会直接调用自定义检查，而是由 `_dispatch` 触发命名事件。
 
 在工具执行方面，有两个重要的点：
 
@@ -60,7 +60,7 @@ hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 - 被挡下或被拒绝的调用永远不会抵达 `run_tool`。
 - `PostToolUse` 只在成功执行之后才会跑。
 - hook 可以收紧 permission 的结果，但不应该放宽它。
-- 在 Claude Code 中，`resolveHookPermissionDecision` 会把 hook 输出和以规则为基础的 permission 加以协调。
+- 在 Claude Code 中，`resolveHookPermissionDecision` 会把 hook 输出和规则型 permission 对齐。
 
 demo 用一个 `PreToolUse` hook，即使在 `bypassPermissions` 之下也挡下 `rm -rf`。
 
@@ -68,7 +68,7 @@ demo 用一个 `PreToolUse` hook，即使在 `bypassPermissions` 之下也挡下
 
 ### 对照：waterfall hooks
 
-Claude Code 的 hook 是一条外部指令：harness 开一个子进程去跑它，再读它的 exit code 和输出。
+Claude Code 的 hook 是一条外部命令：harness 开一个子进程去跑它，再读它的 exit code 和输出。
 deepseek-harness 的 hook 则是一个普通函数，直接在 harness 进程里跑。
 它挂在一个命名事件上，例如工具调用前会触发的那个事件。
 它返回的也不是 exit code，而是类型化决策：deny、ask、allow 这种普通的值。
@@ -107,20 +107,20 @@ dsh 把这种分发方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **优点** | 用户不必改动 loop 就能扩展行为。适合做记录、验证、通知和政策检查。 | hook 是进程内的 plugin，既有的 shell hook 照样能跑。 |
-| **限制** | 固定的事件列表同时也是它的界限。hook 只能在系统对外提供事件的地方进行拦截。 | 两套 hook 做法都要学。bridge 只涵盖一部分事件，也不能改写工具输入。 |
+| **优点** | 用户不必改动 loop 就能扩展行为。适合做记录、验证、通知和策略检查。 | hook 是进程内的 plugin，既有的 shell hook 照样能跑。 |
+| **限制** | 固定的事件列表同时也是它的界限。hook 只能在有事件的地方拦截。 | 两套 hook 做法都要学。bridge 只涵盖一部分，也不能改写工具输入。 |
 | **设计原因** | 让 loop 保持精简。新行为挂接到固定事件上，不用改动或分岔 loop。 | 扩展用的接口，就是 harness 自己在跑的那套事件系统。 |
-| **做法：hook events** | 固定的 27 个生命周期事件，涵盖 tool、prompt、session、stop、subagent、compact 与 setup。 | 每个阶段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上来。 |
-| **做法：fire point** | 从 settings 加载，启动时冻结。`PreToolUse` 在 permission gate 之前触发。 | 在 pre-execute waterfall 里，位在只会拒绝的 guard 之前。 |
-| **做法：can block or modify?** | 可以。拒绝、询问、更新输入、加入 context，或停止。hook 输出会和以规则为基础的 permission 加以协调。 | 可以，靠类型化决策。多个 shell hook 取最严格的：deny > ask > allow。 |
+| **做法：hook events** | 27 个生命周期事件，涵盖 tool、prompt、session、stop、subagent、compact 与 setup。 | 每个阶段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上来。 |
+| **做法：fire point** | 从 settings 加载，启动时冻结。`PreToolUse` 在 permission gate 之前触发。 | 在 pre-execute waterfall 里，排在只会拒绝的 guard 前面。 |
+| **做法：can block or modify?** | 可以。拒绝、询问、更新输入、加入 context，或停止。hook 输出会和规则型 permission 对齐。 | 可以，靠类型化决策。多个 shell hook 取最严格的：deny > ask > allow。 |
 
 ---
 
 ## 常见问题
 
-- **hook 绕过 permission：**hook 可能试图允许一个已被拒绝的动作。要把 hook 输出对照以规则为基础的 permission 来解析。
+- **hook 绕过 permission：**hook 可能试图允许一个已被拒绝的动作。要把 hook 输出对照规则型 permission 来裁决。
 - **Stop hook 无限 loop：**一个 `Stop` hook 可能挡下、触发自我修正，然后又再次触发。要追踪 stop hook 是否已经在运作中。
-- **hook 配置在 session 中途改变：**某个程序可能在启动后修改 settings。要对 hook 配置做一次快照。
+- **hook 配置在 session 中途改变：**某个进程可能在启动后修改 settings。要对 hook 配置做一次快照。
 - **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 返回 `preventContinuation`，要把它呈现为一个优雅的停止，而不是崩溃。
 - **诊断消息淹没结果：**整个项目跑一次 lint，回来的文字可能比写入本身还多。只检查刚改过的那个文件，加回去的量也要设上限。

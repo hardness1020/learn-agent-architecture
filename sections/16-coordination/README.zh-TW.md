@@ -1,25 +1,25 @@
 # 16 · Coordination
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> lead 依任務規模組成團隊，讓每位 agent 在獨立 thread 上工作，再透過 inbox 協作。
+> lead 依任務規模組成團隊，讓每位 agent 在獨立 thread 上工作，再透過共用的 inbox 協作。
 
-單一 agent 只有一個 context window，同一時間能處理的工作也有限。面對大型任務，往往需要多個 agent 同時進行。
+單一 agent 只有一個 context window，同一時間也只有一條在跑的工作線。面對大型任務，往往需要多個 agent 同時進行。
 
 subagent 適合處理範圍明確的子任務，但一次性的 subagent 啟動後，很難在執行途中持續溝通或調整方向。
 
 每增加一個 agent，就會增加 token 成本，也可能讓多個 agent 對同一個檔案做出互相衝突的修改。
-因此，第一個要解決的不是如何 spawn，而是團隊結構：需要幾個 agent、是否共用 context，以及誰負責指派工作。
+因此，第一個要決定的是團隊結構：需要幾個 agent、是否共用 context，以及誰負責指派工作。
 
-要讓多個 agent 真正協作，系統必須提供穩定的身分、spawn 機制、可收發訊息的 inbox，以及把權限請求送回使用者的管道。
+要讓多個 agent 真正協作，系統必須提供穩定的身分、spawn 機制、可收發訊息的 inbox，以及把權限請求送回真人的管道。
 
 協調必須：
 
 1. 為每個 agent 提供穩定、可尋址的身分。
 2. 讓 lead 依任務規模決定團隊結構。
 3. 讓每位成員在自己的 thread 上執行。
-4. 讓成員主動讀取 inbox 並採取行動，不必由 harness 逐步控制。
-5. 將需要核准的動作往上轉交，直到使用者做出決定。
+4. 讓成員主動讀取 inbox 並採取行動，不必由 script 逐步驅動。
+5. 把需要核准的動作往上轉交給真人審核者。
 
 少了 coordination，大型工作只能依序處理，或拆成一群彼此無法溝通的 worker。
 
@@ -29,7 +29,7 @@ subagent 適合處理範圍明確的子任務，但一次性的 subagent 啟動�
 
 ![機制圖](assets/16-coordination.png)
 
-每個 agent 都有自己的 inbox。傳送訊息時，內容會寫進收件者的 inbox；等收件者主動讀取時，訊息才會進入它的工作流程。
+每個 agent 都有自己的 inbox。傳送訊息時，內容會寫進收件者的 inbox；收件者 drain 自己的 inbox 時，訊息才算送達。
 
 團隊要有幾個人、各叫什麼名字，會由 lead 的 LLM 在執行時根據任務決定，而不是寫死在程式裡。lead 先呼叫 `TeamCreate` 組成團隊，再 spawn 每一位成員。
 
@@ -120,7 +120,7 @@ def send(self, frm, to, content):                      # src/mailbox.py
 - lock 把 read-modify-write 序列化，所以並行的 sender 不會漏掉訊息。
 - `drain` 讀取並清空一個 inbox。
 
-permission bubbling 是一種 approver 的實作。它把有閘門的呼叫透過同一個管道搬給使用者：
+permission bubbling 是一種 approver 的實作。它把有閘門的呼叫透過同一個管道搬給真人：
 
 ```python
 def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
@@ -140,7 +140,7 @@ def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
     return approve
 ```
 
-1. 隊友碰到一個有閘門的工具呼叫，但它自己的 loop 前面沒有使用者可以問。
+1. 隊友碰到一個有閘門的工具呼叫，但它自己的 loop 前面沒有真人可以問。
 2. approver 把一則 `permission_request` 送到 lead 的 inbox。
 3. lead 把它導向自己的審核 UI（這裡是 `human` callback）。
 4. 裁決以 `permission_response` 的形式回到隊友的 inbox。
@@ -242,10 +242,10 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **優點** | 隊友能直接交談，檔案 inbox 還能跨 process。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
-| **限制** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
+| **優點** | 隊友能直接交談，檔案 inbox 還能跨 process。 | 子代可以從任何介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
+| **限制** | poll 和 lock 都有成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
 | **設計原因** | 隊友彼此對等，需要 inbox 交談，也需要一條送回人的路。 | 協調維持 parent 對 child。 | 協調就是歸屬關係，每個子代只有一個 parent。 |
-| **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，長命的那種會常駐。 |
+| **做法：teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，有些會常駐。 |
 | **做法：channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway 呼叫。 | 只有 parent 對 child。子代用 report 工具回話。 |
 | **做法：shared memory** | team task list 與團隊 memory 目錄。 | 共用的 session DB，外加 lineage 標記。 | parent 的工作目錄。fork 還會複製它跑完的 turn。 |
 | **做法：permission bubbling** | remote 權限請求轉成本地的審核提示。 | clarify 導向聊天平台，子代自動 deny 或 approve。 | 權限請求沿著 parent 這條線往上問。 |
@@ -267,7 +267,7 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
   寫入時上 lock，或者存一個版本號，對不上就重試。
 - **語意衝突：**兩邊的寫入都乾淨地套用了，結果還是壞的。一個 agent 把某個函式改了名字，另一個 agent 同時照舊名字加了呼叫。
   把工作拆開，別讓兩個 agent 管到同一件東西，或者只在一個點上合併。
-- **錯誤級聯放大：**一個 agent 把某個事實搞錯了。下一個 agent 照抄，再下一個又照抄，到後來看起來就像已經確認過的事。
+- **錯誤級聯：**一個 agent 把某個事實搞錯了。下一個 agent 照抄，再下一個又照抄，到後來看起來就像已經確認過的事。
   只看結論的審查者會覺得前後一致。要找人去對原始證據，而且不能找產出它的那個 agent。
 
 ---

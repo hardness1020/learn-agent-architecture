@@ -1,6 +1,6 @@
 # 12 · Task system
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 把工作存成可持久化的 task，連同相依關係一起管理。
 

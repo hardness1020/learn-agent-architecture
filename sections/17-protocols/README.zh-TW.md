@@ -1,8 +1,8 @@
 # 17 · Protocols
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 不只傳遞訊息，還要定義請求、回覆、核准與停止的規則。
+> 給訊息一份合約：先核准再行動，先確認再停止。
 
 第 16 章的 coordination 提供了溝通管道，但管道只能傳遞文字。若沒有額外規則，系統無法分辨請求與回覆，也不能保證 agent 會先等待核准再行動。
 
@@ -72,7 +72,7 @@ _REPLIES = {                                           # src/protocols.py
 }
 ```
 
-`resolve` 讀這張表，用來拒絕不相符的回覆，並剛好記錄裁決一次：
+`resolve` 讀這張表，用來拒絕不相符的回覆，而且裁決只記錄一次：
 
 ```python
 def resolve(self, msg):                                # src/protocols.py
@@ -90,7 +90,7 @@ def resolve(self, msg):                                # src/protocols.py
     return state
 ```
 
-- `resolve` 是 idempotent 的：重複或走失的回覆會撞上 `state != PENDING` 或未知 id 的守衛，並回傳 `None`。
+- `resolve` 是 idempotent 的：重複或不相干的回覆會撞上 `state != PENDING` 或未知 id 的守衛，並回傳 `None`。
 - `verdicts` 查表就是 type-confusion 守衛：一則 `plan_approval_response` 無法解析一筆 `shutdown_request`，因為那個型別不在 shutdown 那一列裡。
 - shutdown 把它的裁決拆到兩個回覆種類；plan approval 用一個攜帶 bool 的種類。兩者都落到同一個從 `pending` 到 `approved` 或 `rejected` 的狀態。
 - `protocol_tools` 把 handshake 的發起作為工具暴露出來（`ExitPlanMode`、`ApprovePlan`、`StopTeammate`）。
@@ -115,7 +115,7 @@ def run_teammate(team, me, lead, work, *, poll=0.05, max_idle_polls=None):   # s
         time.sleep(poll)                                   # empty: poll again
 ```
 
-- shutdown 在 chat 之前先檢查，所以對等的流量無法把一次停止餓死。
+- shutdown 在 chat 之前先檢查，所以一般訊息不會把停止請求擠到後面。
 - 發起是模型驅動的（lead 的 `StopTeammate`）；接收是 harness 驅動的（loop 確認），對應參考實作的分工。
 - loop 回傳 `"shutdown"`，所以進行 spawn 的 runtime（第 13 章）能回報這次乾淨的停止。
 - 第 18 章再加一個分支：inbox 為空時，從一塊共用看板認領一個 task。
@@ -138,7 +138,7 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 - `StopTeammate` 送出一筆 `shutdown_request`；隊友的 `run_teammate` 確認它並返回。這次停止走的是 handshake，不是直接 kill。
 - lead 把回傳的 `shutdown_approved` 解析成 `approved`。主 process 只是等待。
 - plan-approval 流程就是同一套 handshake 反過來跑（先 `ExitPlanMode` 再 `ApprovePlan`），由相同的工具驅動，並在 test.py 裡驗證。
-- loop 沒有改變。protocol 只動管道上的訊息：請求照格式送出，回覆對回原本的請求，turn 的內部不用動。
+- loop 沒有改變。protocol 在管道上把請求塑形、把回覆結案，這樣包住一次 turn。
 
 ### 延伸閱讀
 
@@ -146,7 +146,7 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 **一次停掉一整批：**同一件事派好幾個 worker 去做，但只要一個答案。
 第一個做成功的 worker 回報上來，lead 就對其餘每個 worker 各送一則停止。
-demo 只停過一個隊友，不過這裡線上並沒有新東西。每一則停止都還是那套先請求再確認，
+demo 只停過一個隊友，不過線路上傳的東西沒有變。每一則停止都還是那套先請求再確認，
 所以沒搶到的 worker 一樣會把檔案寫完、把 task 記錄收掉。就是 shutdown 流程一次送給很多人。
 
 **同一瞬間兩個都贏：**兩個 worker 有可能同時做完。這時兩個都算第一名，lead 會送兩輪停止，結果也記成兩筆。
@@ -160,7 +160,7 @@ demo 只停過一個隊友，不過這裡線上並沒有新東西。每一則停
 **只有單一來源：**這兩層和那把鎖都出自書作者自己的一個實驗，不是比較過好幾個系統之後的結論。
 
 **跟不是自己家的 agent 講話：**上面講的都假設是同一個團隊、同一個 process、同一個擁有者。
-管道是共用的，成員名單在 spawn 時就知道，agent 之間也都信得過線上那些 id。
+管道是共用的，成員名單在 spawn 時就知道，agent 之間也都信得過線路上的那些 id。
 一跨出組織，這些就全都不成立了。沒有共用的 inbox 可以蓋 `request_id`。對方有哪些成員看不到。對方的工具清單也不能直接信。
 A2A 就是為這種情況設計的 protocol。它保留請求配回覆這個核心，另外加三樣東西。
 
@@ -218,7 +218,7 @@ task 的 id 之後還查得到：回覆收到之後、中途停下來要資訊�
 - [`test.py`](src/test.py)：檢查 shutdown 與 plan 流程、各個守衛、一次工具驅動的 handshake，以及一個被 handshake 停止的自運作隊友。
 - [`demo.py`](src/demo.py)：一個 lead turn spawn 一個隊友、委派，並用 StopTeammate 停止它；隊友在自己的 thread 上確認。
 
-loop 與 subagent 路徑不變。protocol 只動管道上的訊息：請求照格式送出，回覆對回原本的請求，turn 的內部不用動。
+loop 與 subagent 路徑不變。protocol 在管道上把請求塑形、把回覆結案，這樣包住一次 turn。
 
 ```bash
 python sections/17-protocols/src/test.py         # offline checks, no key

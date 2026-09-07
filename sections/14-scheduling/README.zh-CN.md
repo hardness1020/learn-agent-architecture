@@ -1,6 +1,6 @@
 # 14 · Scheduling
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 让时间也能启动 agent，不必每次都等用户输入。
 
@@ -57,7 +57,7 @@ def tick(self):                                       # src/scheduler.py; called
 
 ### 本章添加：投递答案
 
-调度触发的 turn 跑起来时，屏幕前没有用户，跑完的答案不主动送出去就没人看到。所以每个 task 可以指定一个 channel。
+fire 出来的那次执行没有人在等，所以答案需要一条送出去的路。每个 task 可以指定一个 channel。
 channel 就存在 task 里，是那笔调度数据的一个字段：`create(..., channel="console")` 存进去，`tick` fire 时再把它和 prompt 一起放进 queue。
 所以 driver 从 queue 拿出来的每个项目，已经是 `{"prompt": ..., "channel": ...}`，不用再去别处查这个答案要送哪。
 
@@ -75,15 +75,15 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 - `channels` 把 channel 名称对应到一个送信的 callable（这里是 print；真正的 adapter 是第 19 章的事）。
   task 指定 channel；driver 拥有这张对照表。两边互不知道对方的细节。
-- 答案以 `[SILENT]` 开头时，`deliver` 直接跳过，不把它送进 channel。这是给调度任务的约定：模型跑完发现没有新东西值得通知用户（例如这次轮询没看到任何变化），就用这个开头。driver 手上仍有完整文字，要留档照样可以。
+- 答案以 `[SILENT]` 开头时，`deliver` 直接跳过，不把它送进 channel。这是调度检查的约定：这次跑完没发现任何值得通知用户的事（例如轮询没看到变化）。driver 手上仍有完整文字，可以写进 log。
 - 没有 channel 表示答案留在本地，也就是加入投递之前的行为。
 - `bool` 返回值让 driver 可以改走别条路（demo 会印出未投递的答案），而不是无声地丢掉答案。
 
 ### Heartbeat
 
-有些来源不会主动推播：没有 webhook 的信箱、没有 feed 的网页、你不问就不回答的服务。
+有些来源不会主动推送：没有 webhook 的信箱、没有 feed 的网页、你不问就不回答的服务。
 对这些来源，能用的触发条件只剩时钟。做法叫 heartbeat：一个周期性的 schedule，prompt 是叫 agent 去看一眼，不是叫它动手。
-看一下来源，判断有没有变化值得讲一句，没有就闭嘴。
+看一下来源，判断有没有变化值得讲一句，没有就不出声。
 
 heartbeat 跑完发现没什么好讲的，就回一个 `[SILENT]`。照上面那条规则，`deliver` 什么都不会送出去。
 这一次 tick 只花一次 model 调用，channel 上不会多一则消息，所以这个 schedule 可以跑得比较密。
@@ -121,9 +121,9 @@ for task in sched.drain():                            # src/demo.py · between t
 间隔短，model 一直醒过来，多半什么也没发现。间隔长，便宜，但消息晚。
 换哪个间隔都解不掉。时钟是在取样状态，不是在盯着事件，所以它只知道自己上次是什么时候看的，不知道事情是什么时候发生的。
 
-**能用推播就用推播：**来源如果能主动调用 agent，事情发生的当下就触发，轮询成本归零。
-所以顺序是：来源支持推播就用推播，不支持才用 heartbeat，真的跟时间绑在一起的工作（例如周一的报表）才用 cron。
-入站推播那一侧由第 19 章负责。
+**能用推送就用推送：**来源如果能主动调用 agent，事情发生的当下就触发，轮询成本归零。
+所以顺序是：来源支持推送就用推送，不支持才用 heartbeat，真的跟时间绑在一起的工作（例如周一的报表）才用 cron。
+入站推送那一侧由第 19 章负责。
 
 ---
 
@@ -149,8 +149,8 @@ for task in sched.drain():                            # src/demo.py · between t
 - **durable 不等于永远启动：**本地 durable schedule 只能在重启后存活。要离线 fire，改用 remote trigger 或 OS timer。
 - **cron 表达式有误（Bad cron expression）：**在 create 时验证，并跳过无效的已加载项目。
 - **loop 正忙：**把 prompt 放进 queue，等 turn 之间再拿出来跑。
-- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回报，用户就学会忽略它。让 prompt 自己判断什么值得送出，其余时候闭嘴。
-- **两次 tick 之间的事件：**时钟取样的是状态。在两次 tick 之间出现又消失的变化，它看不到。改读 log 或游标，或把来源换成推播。
+- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回报，用户就学会忽略它。让 prompt 自己判断什么值得送出，其余时候就不出声。
+- **两次 tick 之间的事件：**时钟取样的是状态。在两次 tick 之间出现又消失的变化，它看不到。改读 log 或游标，或把来源换成推送。
 
 ---
 

@@ -1,8 +1,8 @@
 # 9 · Memory
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-> 把值得長期保留的資訊存到對話之外，需要時再找回來。
+> 把值得長期保留的資訊存到對話之外。
 
 `messages[]` 是單次執行的記憶。它會隨著這次執行結束而消失，執行期間也可能因 context 管理而被壓縮。
 
@@ -26,7 +26,7 @@
 
 ![機制圖](assets/09-memory.png)
 
-最小版 memory 由三部分組成：檔案儲存區、索引，以及按需 recall。
+memory 就是檔案儲存區加索引，再加上按需 recall。
 
 loop 不會一次讀完整個儲存區，而是先查詢成本較低的索引，再載入少數與當前問題最相關的 memory 檔案。
 
@@ -117,12 +117,12 @@ def search_sessions(db_path, query, k=SEARCH_K) -> list[tuple]:
 ```
 
 - 查詢字詞以 `OR` 相連，任何一個字都能命中；`ORDER BY rank`（bm25）把最佳結果排在最前面。
-  這就是帶模糊排序的關鍵字回想，跟 Hermes `session_search` 的做法一樣。
+  這就是帶模糊排序的關鍵字 recall，跟 Hermes `session_search` 的做法一樣。
 - `k` 限制回傳的列數，理由跟 `RECALL_K` 限制注入記憶一樣：精準度優先於數量。
 - `search_tool` 把它包成唯讀的 `SessionSearch` tool，所以要不要查過去的 session，是模型在 turn 進行中自己決定的。
   抽取記憶的 recall 則是 harness 在 turn 開始前決定的。兩條路徑的差別在於由誰發動。
 
-`Store` 是 loop 操作 memory 的統一介面，現在會在執行結束時同時寫入兩個儲存區：
+`Store` 是 loop 用來操作 memory 的 handle，現在會在執行結束時同時寫入兩個儲存區：
 
 ```python
 def write(self, messages) -> list[Path]:               # Store.write, called at run end
@@ -135,7 +135,7 @@ selector、extractor 和 session db 都是選用的，所以測試可以離線�
 
 ### 如何接進現有架構
 
-記憶在 loop 的兩端包住它：
+memory 包在 loop 的前後兩端：
 
 ```python
 if memory is not None:                                 # before the loop
@@ -157,7 +157,7 @@ if response.stop_reason != "tool_use":
 
 ### 延伸閱讀
 
-`src/` 只用一個扁平的目錄，靠 glob 掃過去，所以每個檔案都自動進到索引裡。儲存區大到不能整個掃，就得自己把「找得到」這件事補回來。靠三個東西：
+`src/` 只用一個扁平的目錄，靠 glob 掃過去，所以每個檔案都自動進到索引裡。儲存區大到不能整個掃，就得自己把「找得到」這件事補回來，靠三個東西：
 
 - **自己維護一份索引：**用一個檔案列出所有記憶，recall 不必走遍整棵樹就有東西可以排序。
 - **記憶之間互相連結：**一個檔案指向相關的檔案，recall 就能從已經載入的檔案往外跟著連結走。
@@ -174,11 +174,11 @@ OpenViking 的知識庫三個都做了，還給每個檔案一個 URI。這些 `
 | | Claude Code | Hermes Agent |
 | --- | --- | --- |
 | **優點** | recall 判斷相關性比單純的關鍵字更準。儲存區由背景任務清理。 | 記憶一直在 prompt 裡，cache 保持有效。session 搜尋不需要模型呼叫。 |
-| **限制** | 每次 recall 都多一次模型呼叫。consolidation 需要另外一套控管。 | 關鍵字回想不如 LLM 準。中途寫入要等下一個 session 才會進 prompt。 |
+| **限制** | 每次 recall 都多一次模型呼叫。consolidation 需要另外一套控管。 | 關鍵字 recall 比較不精準。新寫入要等下一個 session 才會進 prompt。 |
 | **設計原因** | 什麼都存，回想就會雜亂，所以 selector 每次只注入少數幾個記憶。 | extraction 可能漏掉事實，所以把原始歷史留成第二個儲存區，隨時搜得到。 |
-| **做法：store** | 帶 frontmatter 的 Markdown 檔案。MEMORY.md 是索引，不是記憶內文。 | 兩個 markdown 檔案（agent 觀察和使用者輪廓），加一份 SQLite session log。 |
+| **做法：store** | 帶 frontmatter 的 Markdown 檔案。MEMORY.md 是索引，不是記憶內文。 | 兩個 markdown 檔案（觀察紀錄和使用者檔案），加一份 SQLite session log。 |
 | **做法：recall** | 模型讀索引，最多選出 5 個記憶。內文注入時附上新鮮度註記。 | session 開始時把快照凍結進 prompt，過往 session 用關鍵字搜。 |
-| **做法：extraction** | 分叉出的 agent 在執行結束時寫入記憶。 | memory tool 在 session 中途把條目寫進硬碟。寫入可以先暫存等待核准。 |
+| **做法：extraction** | 分叉出的 agent 在執行結束時寫入新的記憶檔案。 | memory tool 在 session 中途把條目寫進硬碟。寫入可以先暫存等待核准。 |
 | **做法：consolidation** | 背景任務負責合併與清理，由時間、session 數量和一個 lock 控管。 | 字元預算爆掉時由模型改寫，並追蹤失敗。 |
 
 ---
@@ -187,10 +187,10 @@ OpenViking 的知識庫三個都做了，還給每個檔案一個 URI。這些 `
 
 - **Recall 漏掉有用的記憶：**調整 selector，並把描述寫得具體。
 - **Recall 灌爆這一輪：**限制注入記憶的數量，並以精準度為優先。
-- **過時記憶被當成事實：**帶上存在時間或新鮮度的中繼資料。
+- **過時記憶被當成事實：**帶上寫入時間或新鮮度的中繼資料。
 - **儲存區變雜亂：**合併重複項與相互矛盾的項目。
 - **儲存可推導的事實：**不要儲存 grep、git 或原始碼檔案能回答得更好的事實。
-- **Extraction 漏掉細節：**壓縮可能在 extraction 之前就移除了細微資訊。在接近執行結束時抽取，並把重要事實留在檔案裡。
+- **Extraction 漏掉細節：**壓縮可能在 extraction 之前就把細節磨掉了。在接近執行結束時抽取，並把重要事實留在檔案裡。
 - **記憶檔案沒人連得到：**索引沒列它，也沒有別的檔案連過去，recall 就永遠碰不到它。這次寫入等於白寫。
   寫檔案的那一步就順手把索引那行寫進去，相關的檔案也要互相連結。
 
@@ -218,5 +218,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 - [Claude Code 記憶服務](https://github.com/yasasbanukaofficial/claude-code)：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
 - [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
-- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter3.md`，以中文原著為準。檔案系統知識庫的範式。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter3.md`，以中文原著為準。檔案系統即知識的範式。
 - [OpenViking](https://github.com/volcengine/OpenViking)：知識存成帶 URI 的檔案、分層摘要，以及 wiki 式的交叉連結。

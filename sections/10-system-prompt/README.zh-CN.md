@@ -1,10 +1,10 @@
 # 10 · System prompt assembly
 
-[English](README.md) · [繁体中文](README.zh-TW.md) · **简体中文**
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 每一轮都根据当前状态，重新生成真正需要的 system prompt。
 
-system prompt 是 agent 的常驻指令集，会说明身分、规则、可用工具、项目 context，以及目前启用的功能。
+system prompt 是 agent 的常驻指令集，会说明身份、规则、可用工具、项目 context，以及目前启用的功能。
 
 在实际的 agent 系统中，它不能只是一段写死的文字。
 
@@ -58,7 +58,7 @@ def assemble(sections, state) -> str:                  # the prompt for this tur
     return "\n\n".join(p for p in parts if p is not None)
 ```
 
-每个段落要不要出现在 prompt 里，是它自己看状态决定的。`compute` 返回 `None` 就略过：
+哪些段落要依状态纳入，由这份段落列表自己掌管。`compute` 返回 `None` 就略过：
 
 ```python
 DEMO_SECTIONS = [
@@ -110,7 +110,7 @@ for _ in range(max_steps):                             # src/loop.py
 上面那份列表写死在一个文件里。要加段落就得改那个文件，而文件里的先后顺序就是 prompt 的顺序。
 
 deepseek-harness 则改为通过注册表组装 prompt。每个 plugin 注册一个命名段落，再用数字决定排列位置。
-数字照惯例分成几个区段：harness 身分最前面，接着是部署方的 persona，再来才是工具指引。
+数字照惯例分成几个区段：harness 身份最前面，接着是部署方的 persona，再来才是工具指引。
 组装时照数字排序，所以 plugin 不必知道别人注册了什么，也能找到自己的位置。
 
 registry 还带来两条规则。
@@ -181,7 +181,7 @@ prompt 层降低发生概率，执行层限制损害范围。
 - **易变文字打坏 cache：**把会变动的内容放到后面，或放到 prompt 前缀之外。
 - **段落 cache 过时：**当 session 状态改变时，清掉被记忆的段落。
 - **Prompt 提到不存在的工具：**从实时启用的工具集生成工具文字。
-- **上下文混进 prompt：**当项目文件、日期和 git 状态经常变动时，把它们放进 context 消息。
+- **context 混进 prompt：**当项目文件、日期和 git 状态经常变动时，把它们放进 context 消息。
 - **Prompt 覆盖互相冲突：**用单一 resolver 定义优先顺序。
 - **cache key 变太多份：**边界之前每多一个条件，要各自预热的前缀就翻倍。有条件的段落一律放到边界之后。
 - **状态区块过期：**追加式的状态会越积越多，模型可能照着旧的那一份行动。标清楚哪一份最新，或是就地换掉并接受 cache 重建。

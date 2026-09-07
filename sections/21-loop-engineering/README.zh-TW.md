@@ -1,6 +1,6 @@
 # 21 · Loop engineering
 
-[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 > 重點不再是下一句 prompt，而是如何設計一套能自行啟動、驗證與改進的 loop。
 
@@ -181,8 +181,8 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 | **優點** | verify 用程式編排，budget 是硬上限。 | 有 budget，改進也能回滾。 | 每趟 run 的帳單都有硬上限。 | 外層 loop 以 plugin 掛在公開的事件上。 |
 | **限制** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半。 | 沒有東西檢查成果，只有輪數當預算。 |
 | **設計原因** | 把外層 loop 當成一段可編排的程式。 | 目標是讓改進閉合到 model。 | 一趟 run 就是一個評分任務。 | loop 本身就是 plugin，控制自然掛在它上面。 |
-| **做法：verification** | verify 階段用程式編排：judge panel。 | maker 和 checker 分工，加離線測試。 | 沒有，SWE-bench 離線評分。 | 沒有內建，做完了沒由模型自己說。 |
-| **做法：event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset。 | 沒有，runner 排的是任務，不是時間。 | 提醒從 log 重放，以一個 turn 的形式進來。 |
+| **做法：verification** | verify 階段用程式編排：judge panel。 | maker 和 checker 分工，加離線測試。 | 沒有，SWE-bench 離線評分。 | 沒有內建，做完了沒，由模型自己說。 |
+| **做法：event loop** | Cron、自訂節奏喚醒、remote trigger。 | cron 加受限 toolset。 | 沒有，runner 排的是任務，不是時間。 | 提醒從 log 重放，以一個 turn 的形式進來。 |
 | **做法：improvement loop** | workflow 可斷點續跑，從 cache 重放。 | run 會變成訓練資料。 | 沒有，只有 budget。 | 沒有現成的，但接的地方都留好了。 |
 
 ---
