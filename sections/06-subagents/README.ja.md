@@ -2,28 +2,28 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> フォーカスされた子ループを実行し、その結果のみを返します。
+> 目的を絞った child loop を走らせ、その結果だけを返します。
 
-メインエージェントは subagent に作業を任せることができます。委任する側が親であり、送り出される側が子です。
+メインの agent は subagent に作業を渡せます。渡す側が親、送り出される側が子です。
 
-親にとって、これは単なる 1 つのツール呼び出しです。ただし、その呼び出し内では完全な agent loop が実行されます。
-親は子供に指示を与えます。子は新しい `messages[]` を取得し、最後まで実行して、最終的な応答を返します。
+親から見れば、これは tool call が 1 回あるだけです。しかしその呼び出しの中では、完全な agent の loop が走っています。
+親は子に prompt を渡します。子は新しい `messages[]` を受け取り、最後まで走り、最終的な答えを返します。
 
-これにより、サイド調査が親コンテキストから外されます。親は、子からのすべてのファイル読み取りまたはコマンド結果を必要としません。通常は結論が必要です。
+こうすると、脇道の調査が親の context に入りません。親は、子が読んだファイルや実行したコマンドの結果を全部知る必要はありません。ふつう必要なのは結論だけです。
 
-subagents がない場合、すべての調査は主な記録に残ります。長時間実行するとノイズが多くなり、コストが高くつき、モデルの追跡が困難になります。
+subagent がないと、調査はすべてメインの transcript に残ります。長い実行は雑音が増え、費用がかさみ、モデルにとって追いにくくなります。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/06-subagents.png)
+![Mechanism diagram](assets/06-subagents.png)
 
-`Agent` ツールは子エージェントを開始します。子には独自のセッションとメッセージ リストがあります。親と同じループを実行します。
+`Agent` tool が child agent を起動します。子は自分の session と message のリストを持ちます。走らせる loop は親と同じです。
 
-子供の最後のテキストだけが返されます。そのトランスクリプトは破棄されます。ファイルの書き込みとシェルの副作用は作業ディレクトリでも引き続き発生します。
+戻ってくるのは子の最終テキストだけです。子の transcript は捨てられます。ファイルの書き込みや shell の副作用は、作業ディレクトリにそのまま残ります。
 
-### 新機能: エージェント ツール
+### 本節の追加: Agent tool
 
 ```python
 def agent_tool(model, child_registry, parent_session):     # src/subagents.py
@@ -35,57 +35,57 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
     return Tool("Agent", spawn, is_read_only=True)
 ```
 
-- `agent_tool` は通常のツールを返します。
-- そのハンドラーは、新しい `Session` を使用して `run_turn()` を呼び出します。
-- 子の `messages[]` は、子のプロンプトのみで開始されます。
-- 子は、`run_turn()` が返すテキストを返します。
+- `agent_tool` は通常の tool を返します。
+- そのハンドラは、新しい `Session` を渡して `run_turn()` を呼びます。
+- 子の `messages[]` は、子の prompt だけから始まります。
+- 子は `run_turn()` が返したテキストを返します。
 
-### 統合方法
+### 既存の構成への組み込み
 
-ループは変わりません。 subagent は、ループを呼び出す別のツール ハンドラーです。
+loop は変わりません。subagent は、loop を呼ぶだけのもう 1 つの tool ハンドラです。
 
-次の 3 つのプロパティが重要です。
+重要な性質が 3 つあります。
 
-- **最新のコンテキスト。** 子は親のトランスクリプトを継承しません。親は子のトレースを継承しません。
-- **継承された権限。** 子は親のアクセス許可モードと許可ルールをコピーします。コンテキストの分離は権限の分離ではありません。
-- **再帰制限。** デモでは子レジストリから `Agent` が省略されているため、子は別の子を生成できません。
+- **新しい context。** 子は親の transcript を引き継ぎません。親は子の実行の記録を引き継ぎません。
+- **引き継がれる権限。** 子は親の permission の mode と allow ルールをコピーします。context の分離は permission の分離ではありません。
+- **再帰の制限。** デモでは child registry から `Agent` を外しているので、子はさらに子を生成できません。
 
 ---
 
-## システムごと
+## システム別
 
-各エージェントが部分問題を切り分けて結果を返す方法。
+各 agent が部分問題をどう切り離し、結果をどう返すか。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **長所** |子コンテキストにより、親に焦点が当てられ、メインのトランスクリプトがクリーンな状態に保たれます。 | 1 つのシームは、プロセス内の子、外部ランタイム、および製品 CLI にまたがります。 |
-| **短所** |親は子供がどうやってそこにたどり着いたのかを失います。薄い要約は、もう一度尋ねることを意味します。 | 6 つのバックエンドと履歴書マネージャー。1 つのツールで十分です。 |
-| **理由** |親は、子供が読んだすべてのファイルではなく、結論を必要とします。 |委任はトランスポートの選択であるため、各バックエンドは名前で登録されます。 |
-| **方法: プリミティブをスポーン** | `Agent` ツール。 subagent タイプは、組み込みのペルソナを選択します。 |登録されたバックエンドごとに 1 つのツール: 新しい子、フォーク、runtime または CLI。 |
-| **方法: コンテキストの分離** |新鮮な子供たちへのメッセージ。フォークした子は再びフォークすることはできません。 |生まれたばかりの子供は空から始まります。フォークは親の終了したターンのみをコピーします。 |
-| **方法: 結果を返す** |子供の最後のメッセージのテキストが戻ります。トランスクリプトは削除されます。 |最後のアシスタント メッセージと、スキーマに対してチェックされたオプションの出力。 |
-| **方法: 再開** |ほとんどのエージェントが再開します。親はフォローアップ メッセージを送信します。 |永続的な子はフォローアップをキューに入れ、再起動後にログからリロードします。 |
+| **利点** | 子の context が親の集中を保ち、メインの transcript をきれいに保つ。 | 1 つの接続点で、プロセス内の子・外部ランタイム・製品の CLI をまとめて扱える。 |
+| **欠点** | 親は子がそこに至った経緯を失う。要約が薄いと聞き直しになる。 | 1 つの tool で足りるところに、6 つのバックエンドと再開の管理を抱えている。 |
+| **理由** | 親に必要なのは結論であって、子が読んだファイルのすべてではない。 | 委任は転送方式の選択なので、各バックエンドを名前で登録する。 |
+| **方法: 生成の基本操作** | `Agent` tool。subagent の型が組み込みのペルソナを選ぶ。 | 登録済みバックエンドごとに tool が 1 つ。新しい子、fork、外部ランタイム、CLI。 |
+| **方法: context の分離** | 子の messages は新規。fork した子はさらに fork できない。 | 新しい子は空から始まる。fork は親の完了した turn だけをコピーする。 |
+| **方法: 結果の返却** | 子の最後の message のテキストが返る。transcript は破棄される。 | 最後の assistant message と、スキーマ検査を通した任意の出力。 |
+| **方法: 再開** | ほとんどの agent は再開できる。親が追加の message を送る。 | 永続化された子は追加依頼をキューに入れ、再起動後はログから読み直す。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **損失の多い概要** 子は圧縮しすぎる可能性があります。重要な結果をディスクに書き込むように依頼します。
-- **暴走再帰。** 子を生成する子は際限なく成長することができます。 `Agent` ツールを子レジストリから除外するか、深さ制限を適用します。
-- **子は停止しません。** 子には親と同じ停止リスクがあります。各子供に独自のターンまたはトークン制限を与えます。
-- **想定される許可の隔離。** 子供には依然として通常の許可ゲートが必要です。コンテキストは別なので飛ばさないでください。
-- **孤立した非同期の子。** バックグラウンドの子は、親が先に進んだ後に終了できます。タスク記録で追跡します。
+- **要約による欠落。** 子が圧縮しすぎることがある。重要な発見はディスクに書くよう指示する。
+- **暴走する再帰。** 子が子を生成し続けると際限なく増える。child registry から `Agent` tool を外すか、深さの上限を設ける。
+- **子が止まらない。** 子は親と同じ停止のリスクを持つ。子ごとに turn か token の上限を与える。
+- **permission が分離されている前提。** 子にも通常の permission のゲートが必要。context が別だからといって省いてはいけない。
+- **放置される非同期の子。** バックグラウンドの子は、親が先へ進んだ後に終わることがある。task の記録で追跡する。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) 05 を前方に繰り上げて次を追加します。
+[`src/`](src/) は 05 を引き継ぎ、次を追加します。
 
-- [`subagents.py`](src/subagents.py): `Agent` ツール。
+- [`subagents.py`](src/subagents.py): `Agent` tool。
 - [`loop.py`](src/loop.py): セクション 5 から変更なし。
-- [`demo.py`](src/demo.py): 親は子にカウントを委任します。
-- [`test.py`](src/test.py): 新しいコンテキスト、継承された権限、および再帰フェンシングをチェックします。
+- [`demo.py`](src/demo.py): 親が数え上げを子に委任する。
+- [`test.py`](src/test.py): 新しい context、権限の引き継ぎ、再帰の遮断を検査。
 
 ```bash
 python sections/06-subagents/src/test.py         # offline checks, no key
@@ -94,11 +94,11 @@ uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code):
-  `tools/AgentTool/AgentTool.tsx`、`runAgent.ts`、`resumeAgent.ts`、`forkSubagent.ts`、`builtInAgents.ts`、`tasks/LocalAgentTask/`。
-- [deepseek-harness ソース](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
-  `packages/subagent/subagent/src/index.ts`、`src/continuation.ts`、`packages/subagent/subagent-fork-in-process/README.md`、
-  `packages/subagent/subagent-acp/README.md`、`docs/subsystems/subagent.md`、`docs/tool-catalog.md`。
-- [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code): セクションのフレーム化。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/AgentTool/AgentTool.tsx`, `runAgent.ts`, `resumeAgent.ts`, `forkSubagent.ts`, `builtInAgents.ts`, `tasks/LocalAgentTask/`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/subagent/subagent/src/index.ts`, `src/continuation.ts`, `packages/subagent/subagent-fork-in-process/README.md`,
+  `packages/subagent/subagent-acp/README.md`, `docs/subsystems/subagent.md`, `docs/tool-catalog.md`.
+- [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code): section framing.

@@ -1,11 +1,11 @@
 <h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
 
 <p align="center">
-  <strong>最新の AI Agent が LLM を中心にどのように構築されているかを学びます。</strong><br>
+  <strong>現代の AI agent が LLM の周りにどう組み立てられているかを学びます。</strong><br>
 </p>
 
 <p align="center">
-  <a href="#セクション"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
+  <a href="#セクション一覧"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
   <br>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-D97757" alt="Claude Code"></a>
@@ -22,115 +22,115 @@
   <a href="README.md">English</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.zh-CN.md">简体中文</a> · <strong>日本語</strong> · <a href="README.ko.md">한국어</a>
 </p>
 
-モデルは推論します。harness はその推論を制御された行動へ変換します。ツールを実行し、呼び出し間で状態を保持し、副作用を制御し、複数の loop を調整します。
-モデル呼び出しだけでは、これらを実現できません。
+推論するのはモデルです。harness はその推論を制御された行動に変えます。tool を実行し、呼び出しをまたいで状態を保ち、副作用にゲートをかけ、複数の loop を調整します。
+モデルを一度呼び出すだけでは、そのどれもできません。
 
-このリポジトリは harness をセクションごとに説明します：ループ、ツール、メモリ、権限、コンテキスト、タスク、インターフェース。
-一度学べば、多くのエージェントを理解できます。コーディングツール、チャットアシスタント、自律実行者は主に harness の選択が異なります。
+この repo は harness をセクションごとに解説します。loop、tool、memory、permission、context、task、そしてインターフェースです。
+一度身につければ多くの agent が読めるようになります。コーディング用の tool もチャットアシスタントも自律実行型の runner も、違いのほとんどは harness の選択にあるからです。
 
-一つのセクションだけでは扱いきれない内容は、次の二つの関連リポジトリで詳しく説明しています。
+1 セクションでは収まらない話題は、2 つの姉妹 repo で掘り下げています。
 
-- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：memory loop を実運用向けの memory subsystem へ拡張します。
-- [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)：deepseek-harness を一から学び、plugin seam を一つずつ理解します。
+- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): memory loop を本番向けの memory サブシステムまで拡張します。
+- [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness): deepseek-harness をゼロから学びます。plugin の接合部を 1 つずつ追います。
 
-**内容:** [Loop](#agent-loop) · [学習方法](#学習方法) · [対象システム](#研究対象システム) ·
-[セクション](#セクション) · [構成](#リポジトリ構造) · [デモ実行](#デモの実行)
-
----
-
-## Agent Loop
-
-![agent loop](assets/the-agent-loop.png)
-
-ほとんどのエージェントは同じ制御フローを共有しています：モデルを呼び出し、要求されたツールを実行し、結果を追加し、再びモデルを呼び出します。
-
-ループは小さいです。その周りにほとんどのエンジニアリングが存在します：ディスパッチツール、ゲートの副作用、コンテキストの管理、状態の永続化、そして他のループの調整。
+**目次:** [Loop](#agent-loop) · [学び方](#学び方) · [研究対象のシステム](#研究対象のシステム) ·
+[セクション一覧](#セクション一覧) · [リポジトリ構成](#リポジトリ構成) · [デモの実行](#デモの実行)
 
 ---
 
-## 学習方法
+## Agent loop
 
-各セクションは独立しており、同じ四部構成のレンズを使用します：
+![The agent loop](assets/the-agent-loop.png)
 
-1. **オープニング。** この層が解決する問題。
-2. **メカニズム。** 一般的な設計と制御フロー。
-3. **システムごと。** 実際のシステムでの実装方法。
-4. **障害モード。** 何が壊れるか、そしてどのように対処するか。
+ほとんどの agent は同じ制御フローを共有します。モデルを呼び出し、要求された tool を実行し、結果を追記し、もう一度モデルを呼び出します。
 
-このリポジトリから学ぶには：
-
-- **セクションを順番に読むこと。各セクションは前の層に基づいて構築されています。**
-- 実行可能なセクションの場合、`src/loop.py` を読み、それから `demo.py` を実行してください。
-- セクション`src/`をその前のセクションと比較してください。この差分は、そのセクションが追加する唯一のメカニズムです。
+loop そのものは小さいです。工学の大部分はその周りにあります。tool の dispatch、副作用のゲート、context の管理、状態の永続化、そして他の loop との調整です。
 
 ---
 
-## 研究対象システム
+## 学び方
 
-各システムは下記のセクションのための作業例です。
+どのセクションも独立していて、同じ 4 部構成のレンズを使います。
 
-| システム | 人々が使う理由 | 読む目的 | セクション | 調査したバージョン |
+1. **導入。** この層がどんな問題を解くか。
+2. **仕組み。** 一般的な設計と制御フロー。
+3. **システム別。** 実在のシステムがどう実装しているか。
+4. **失敗モード。** 何が壊れ、どう緩和するか。
+
+この repo から学ぶには、次のようにしてください。
+
+- **セクションを順番に読んでください。どのセクションも 1 つ前の層の上に積み上がります。**
+- 実行できるセクションでは、まず `src/loop.py` を読み、それから `demo.py` を動かしてください。
+- あるセクションの `src/` を 1 つ前のセクションと diff してください。その差分が、そのセクションが足した唯一の仕組みです。
+
+---
+
+## 研究対象のシステム
+
+どのシステムも、以下のセクションのための実例です。
+
+| システム | 使われる理由 | 何を読み取るか | セクション | 調査したバージョン |
 | --- | --- | --- | --- | --- |
-| **Claude Code**  | 最先端の coding agent。実際のリポジトリでファイルを編集し、コマンドを実行して変更を反映します。 | 完全な harness。まずここから       | 0〜23（すべて）        | v2.1.88         |
-| **Hermes Agent** | 長期利用向け assistant。ユーザーを記憶し、workflow を学習して、さまざまな環境で動作します。 | Memory、skills、常時接続 channel | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
-| **mini-swe-agent** | 研究用 baseline。bash tool 一つ、約150行。 | 最小の完全な loop、budget、eval harness | 0〜3、8、10、11、20〜23 | v2.4.5 |
-| **deepseek-harness** | Plugin-first harness。loop 自体も交換可能な plugin です。 | Plugin seam、永続的な session log、ACP | 1〜8、10〜14、16〜21 | dsh-v0.1.0-rc.7 |
-| *(続報あり)* | | | | |
+| **Claude Code**  | 最前線のコーディング agent。ファイルを編集し、コマンドを実行し、実際の repo に変更を反映します。 | harness の全体像。まずここから | 0 から 23 (すべて)        | v2.1.88         |
+| **Hermes Agent** | 長期的なアシスタント。あなたを覚え、作業の流れを学び、どこでも動きます。 | memory、skill、常時接続の channel | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
+| **mini-swe-agent** | 研究用のベースライン。bash tool が 1 つだけ、約 150 行です。 | 最小構成で完結した loop、予算、eval harness | 0 から 3, 8, 10, 11, 20 から 23 | v2.4.5 |
+| **deepseek-harness** | plugin 中心の harness。loop さえ差し替え可能な plugin です。 | plugin の接合部、永続的な session log、ACP | 1 から 8, 10 から 14, 16 から 21 | dsh-v0.1.0-rc.7 |
+| *(more soon)* | | | | |
 
-> 後で追加のシステムを追加できます。OpenClaw や aider も含まれます。
-> 2つの関連リポジトリがさらに詳しく扱います: メモリ層用 [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)、
-> そして学習用 [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) で deepseek-harness をゼロから学習します。
-
----
-
-## セクション
-
-基本的なループから自律的に動作するharnessまで、八つの層があります。各行は独立した説明文にリンクしています。
-
-> セクション9は[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)で続きます：メモリループを本番環境にスケールするさらに10段階。
-
-![学習パス](assets/learning-path.png)
-
-| #  | セクション                                                  | 質問                                               | 主要なメカニズム                                      |
-| -- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------- |
-|    | **レイヤー 0 · 基礎**                             |                                                    |                                                       |
-| 0  | [Harness thesis](sections/00-harness-thesis/)                 | Agent の主体性はどこから生まれるのか？                       | Model vs harness、action、observation、permission  |
-|    | **レイヤー 1 · コアループ**                               |                                                    |                                                       |
-| 1  | [Agent Loop](sections/01-agent-loop/)                         | Agent はどのように動作を続けるのか？                      | `messages[]`、loop、`stop_reason`                 |
-| 2  | [Tool Runtime](sections/02-tool-runtime/)                     | Tool はどのように呼び出され、振り分けられるのか？                   | Registry、schema、dispatch、deferred search          |
-| 3  | [Permission & sandbox](sections/03-permission-sandbox/)   | 副作用はどのように制御されますか？                        | 権限モード、承認、サンドボックス               |
-| 4  | [Hooks](sections/04-hooks/)                                   | 拡張機能はどのようにループに接続されますか？              | `PreToolUse`, `PostToolUse`, ライフサイクルイベント     |
-|    | **レイヤー2 · 複雑な作業**                            |                                                    |                                                       |
-| 5  | [Planning & todos](sections/05-planning-todos/)           | 大きな作業はどのように分解されるか？                        | Plan mode、todo list、編集前の承認           |
-| 6  | [Subagents](sections/06-subagents/)                           | サブ問題はどのように孤立されるか？                      | 新しい`messages[]`、委任、子ループ          |
-| 7  | [Skills](sections/07-skills/)                                 | 能力はどのように必要に応じてロードされるか？             | `SKILL.md`、カタログ、progressive disclosure         |
-| 8  | [Context management](sections/08-context-management/)         | 長時間のセッションはどのようにウィンドウに収まるか？               | 予算管理、スタブ、圧縮、要約               |
-|    | **レイヤー3 · 知識と回復力**                  |                                                    |                                                       |
-| 9  | [Memory](sections/09-memory/)                                 | 実行をまたいで、どのように記憶を保持するのか？                  | Selection、recall、extraction、consolidation          |
-| 10 | [System prompt assembly](sections/10-system-prompt/)          | 各 turn の prompt はどのように構築されるのか？                 | Prompt section、live state、cache boundary         |
-| 11 | [Error recovery](sections/11-error-recovery/)                 | 長時間の task はどのように障害から回復するのか？              | Retry、overflow recovery、fallback model            |
-|    | **レイヤー4 · 長期実行＆非同期**                         |                                                    |                                                       |
-| 12 | [タスクシステム](sections/12-task-system/)                   | どのようにして作業はターンを超えて持続するのか？    | タスク記録、依存関係、ロック                           |
-| 13 | [Background execution](sections/13-background-execution/)      | どのようにして作業はメインループ外で実行されるのか？ | ハンドル、タスク状態、通知キュー                       |
-| 14 | [スケジューリング](sections/14-scheduling/)                     | どのようにしてエージェントは後で実行されるのか？        | Cron、スリープ、リモートトリガー、キュー      |
-| 15 | [Worktree isolation](sections/15-worktree-isolation/)         | 並列作業はどのように衝突を回避しますか？           | Git worktrees、cwdバインディング、安全なクリーンアップ              |
-|    | **レイヤー5 · マルチエージェント**                             |                                                    |                                                       |
-| 16 | [調整](sections/16-coordination/)                     | 多くのエージェントはどのように通信しますか？                           | 受信箱、ブロードキャスト、パーミッションバブリング              |
-| 17 | [プロトコル](sections/17-protocols/)                           | エージェントはどのように合意し、正しく停止しますか？              | 計画承認、シャットダウンハンドシェイク                    |
-| 18 | [自律](sections/18-autonomy/)                             | エージェントはどのように自分自身を組織化するのか？                 | 待機サイクル、タスクの獲得、自己組織化          |
-|    | **レイヤー6 · 拡張と統合**                 |                                                    |                                                       |
-| 19 | [MCP / plugins / チャンネル](sections/19-mcp-plugins-channels/) | harnessはどのように世界に到達するのか？              | 輸送、チャンネル、ツールプールの組み立て              |
-| 20 | [Observability & evaluation](sections/20-observability/)  | どのようにそれが機能するかを知るのか？                           | トレース、メトリクス、evals、障害分析             |
-| 23 | [Evaluation](sections/23-evaluation/)                         | 変更が改善につながったかどうかはどうやってわかるのか？            | Eval 環境、リセット、ジャッジ、Pass^k             |
-|    | **レイヤー 7 · 構成**                             |                                                    |                                                       |
-| 21 | [Loop engineering](sections/21-loop-engineering/)             | ループはどのように積み重なって自律的に動くシステムになるのか？ | 検証ループ、トリガー、予算、成熟度レベル |
-| 22 | [Graph engineering](sections/22-graph-engineering/)           | 制御フローはいつモデルからコードに移るのか？ | ノード、コード化されたエッジ、サイクル、ノードとしてのエージェント           |
+> 今後 OpenClaw や aider を含む他のシステムを追加できます。
+> さらに深く掘り下げる姉妹 repo が 2 つあります。memory 層は [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)、
+> deepseek-harness をゼロから学ぶなら [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) です。
 
 ---
 
-## リポジトリ構造
+## セクション一覧
 
-すべての24のセクションの解説は、`00-harness-thesis/`から`23-evaluation/`まで揃っています。
+基本の loop から自走する harness まで、8 つの層があります。各行は独立した 1 本の解説へのリンクです。
+
+> セクション 9 は [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) に続きます。その memory loop を本番規模へ広げる 10 段階です。
+
+![The learning path](assets/learning-path.png)
+
+| #  | セクション | 問い | 主な仕組み |
+| -- | --- | --- | --- |
+|    | **層 0 · 土台** | | |
+| 0  | [Harness の主題](sections/00-harness-thesis/README.ja.md) | agency はどこから来るのか | モデルと harness、行動、観測、permission |
+|    | **層 1 · 中心の loop** | | |
+| 1  | [Agent loop](sections/01-agent-loop/README.ja.md) | agent はどうやって動き続けるのか | `messages[]`、loop、`stop_reason` |
+| 2  | [Tool runtime](sections/02-tool-runtime/README.ja.md) | tool はどう呼ばれ、どう振り分けられるのか | registry、schema、dispatch、遅延読み込みの検索 |
+| 3  | [Permission と sandbox](sections/03-permission-sandbox/README.ja.md) | 副作用にはどうゲートをかけるのか | permission モード、承認、sandbox 化 |
+| 4  | [Hooks](sections/04-hooks/README.ja.md) | 拡張は loop のどこに取り付くのか | `PreToolUse`、`PostToolUse`、ライフサイクルイベント |
+|    | **層 2 · 複雑な作業** | | |
+| 5  | [計画と todo](sections/05-planning-todos/README.ja.md) | 大きな仕事はどう分解するのか | plan mode、todo リスト、編集前の承認 |
+| 6  | [Subagent](sections/06-subagents/README.ja.md) | 部分問題はどう切り離すのか | 新しい `messages[]`、委譲、child loop |
+| 7  | [Skill](sections/07-skills/README.ja.md) | 能力はどう必要に応じて読み込むのか | `SKILL.md`、カタログ、段階的な開示 |
+| 8  | [Context 管理](sections/08-context-management/README.ja.md) | 長い session をどうやって窓に収めるのか | 予算管理、スタブ、compaction、要約 |
+|    | **層 3 · 知識と回復力** | | |
+| 9  | [Memory](sections/09-memory/README.ja.md) | 実行をまたいでどう覚えるのか | 選別、recall、抽出、統合 |
+| 10 | [System prompt の組み立て](sections/10-system-prompt/README.ja.md) | prompt は turn ごとにどう作られるのか | prompt の各区画、実行中の状態、cache 境界 |
+| 11 | [エラー回復](sections/11-error-recovery/README.ja.md) | 長い仕事はどう失敗を乗り切るのか | リトライ、あふれからの回復、フォールバックモデル |
+|    | **層 4 · 長時間実行と非同期** | | |
+| 12 | [Task システム](sections/12-task-system/README.ja.md) | 仕事は turn を越えてどう残るのか | task レコード、依存関係、ロック |
+| 13 | [バックグラウンド実行](sections/13-background-execution/README.ja.md) | 仕事はどうやってメイン loop の外で動くのか | ハンドル、task の状態、通知キュー |
+| 14 | [スケジューリング](sections/14-scheduling/README.ja.md) | agent はどうやって後から動くのか | cron、スリープ、リモートからの起動、キュー |
+| 15 | [Worktree の分離](sections/15-worktree-isolation/README.ja.md) | 並行作業はどう衝突を避けるのか | git worktree、cwd の束縛、安全な後片付け |
+|    | **層 5 · マルチ agent** | | |
+| 16 | [協調](sections/16-coordination/README.ja.md) | 多数の agent はどう会話するのか | inbox、ブロードキャスト、permission の持ち上げ |
+| 17 | [プロトコル](sections/17-protocols/README.ja.md) | agent はどう合意し、どうきれいに止まるのか | 計画の承認、停止のハンドシェイク |
+| 18 | [自律性](sections/18-autonomy/README.ja.md) | agent はどう自分たちを組織するのか | アイドル周期、task の確保、自己組織化 |
+|    | **層 6 · 拡張と統合** | | |
+| 19 | [MCP / plugin / channel](sections/19-mcp-plugins-channels/README.ja.md) | harness はどう外の世界に手を伸ばすのか | トランスポート、channel、tool プールの組み立て |
+| 20 | [可観測性と評価](sections/20-observability/README.ja.md) | 動いているとどう分かるのか | トレース、メトリクス、eval、失敗の分析 |
+| 23 | [評価](sections/23-evaluation/README.ja.md) | 変更で良くなったとどう分かるのか | eval 環境、リセット、判定器、Pass^k |
+|    | **層 7 · 組み合わせ** | | |
+| 21 | [Loop エンジニアリング](sections/21-loop-engineering/README.ja.md) | loop はどう積み重なって自走するシステムになるのか | 検証 loop、トリガー、予算、成熟度レベル |
+| 22 | [グラフエンジニアリング](sections/22-graph-engineering/README.ja.md) | 制御フローはいつモデルからコードへ移るのか | ノード、コードで書いた辺、循環、ノードとしての agent |
+
+---
+
+## リポジトリ構成
+
+24 本のセクション解説がすべて揃っています。`00-harness-thesis/` から `23-evaluation/` までです。
 
 ```text
 awesome-agent-architecture/
@@ -143,20 +143,20 @@ awesome-agent-architecture/
 └── references/                # primary sources and prior art
 ```
 
-各セクションフォルダは`NN-name/`であり、`README.md`を含んでいます。
+各セクションのフォルダは `NN-name/` という名前で、`README.md` を 1 つ含みます。
 
-セクション1から23も実行可能な`src/`を持っています。コードはセクションごとに累積されます。
-各セクションは1つのメカニズムを追加し`loop.py`を進化させるので、隣接するセクションの差分を見ると何が変わったかがわかります。
+セクション 1 から 23 には実行できる `src/` も付いています。コードはセクションごとに積み上がります。
+各セクションは仕組みを 1 つ足して `loop.py` を発展させるので、隣り合うセクションの diff が変更点そのものになります。
 
-1つのセクションに収まりきらない深い解析は、それぞれ独自のリポジトリに存在します。
-[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)はセクション9のループを完全なメモリサブシステムに拡張します。
-[learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)はdeepseek-harnessを一から学習し、1つのpluginの継ぎ目ずつ進めます。
+1 セクションでは収まらない深掘りは、それぞれ独立した repo にあります。
+[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) はセクション 9 の loop を完全な memory サブシステムへ広げます。
+[learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) は deepseek-harness をゼロから、plugin の接合部を 1 つずつ学びます。
 
 ---
 
 ## デモの実行
 
-セクション1から23までは実行可能なデモが含まれています。リポジトリのルートから一度セットアップしてください:
+セクション 1 から 23 には実行できるデモが付いています。repo のルートで一度だけ準備します。
 
 ```bash
 uv venv
@@ -164,16 +164,16 @@ uv pip install -r requirements.txt
 cp .env.example .env        # then add your ANTHROPIC_API_KEY
 ```
 
-固定された依存関係は[`requirements.txt`](requirements.txt)にあります。`.env`はgitignoreされており、以下を保持しています:
+依存関係は [`requirements.txt`](requirements.txt) に固定してあります。`.env` は gitignore されていて、次を持ちます。
 
 - `ANTHROPIC_API_KEY`
-- オプション `ANTHROPIC_MODEL`
-- オプション `ANTHROPIC_BASE_URL`
+- 省略可能な `ANTHROPIC_MODEL`
+- 省略可能な `ANTHROPIC_BASE_URL`
 
-各実行可能なセクションには以下があります:
+実行できるセクションには次があります。
 
-- `test.py`: オフラインチェック、キーは不要です。
-- `demo.py`: APIに対するライブデモ。
+- `test.py`: オフラインの検査。キーは要りません。
+- `demo.py`: API に対する実際のデモ。
 
 ```bash
 python sections/01-agent-loop/src/test.py         # offline
@@ -182,32 +182,32 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 
 ---
 
-## コントリビューション
+## 貢献するには
 
-- **システムを追加する。** 同じセクション構造に新しいエージェントを挿入してください。
-- **セクションを深める。** メカニズム、より明確な図、またはより鋭い失敗モードを追加してください。
-- **記録を訂正する。** これらはソース、ドキュメント、動作からの再構築です。ソースに基づく訂正は歓迎します。
+- **システムを足す。** 新しい agent を同じセクション構成に当てはめてください。
+- **セクションを深める。** 仕組み、より分かりやすい図、より鋭い失敗モードを足してください。
+- **記述を正す。** これらはソース、ドキュメント、実際の挙動からの再構成です。出典付きの訂正を歓迎します。
 
-推測よりも、名前が確認可能なメカニズムを優先してください。ソースを引用してください。
-完全なPRチェックリストについては、[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
+推測より、名前があって検証できる仕組みを優先してください。出典を挙げてください。
+PR のチェックリスト全体は [CONTRIBUTING.md](CONTRIBUTING.md) を見てください。
 
 ---
 
 ## 参考文献
 
-- [claude-code](https://github.com/yasasbanukaofficial/claude-code): メカニズム名と実装パスに使用された Claude Code のソースバックアップ。
-- [hermes-agent](https://github.com/NousResearch/hermes-agent): 研究対象として使用された 2 番目のシステムであるオープンソース agent harness (MIT)。
-- [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 研究対象として使用された 3 番目のシステムである最小限の SWE エージェント (MIT)。
-- [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 研究対象として使用された 4 番目のシステムであるプラグインベースの agent harness (MIT)。
-- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): コードファースト harness 再構築とセクションフレーミング。
-- [Anthropic Agent Skills ベストプラクティス](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure レベルの skills。
-- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): キャッシュブレークポイント、TTL、価格設定、およびトークン最小値。
-- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): ループ構築ブロックと準備レベル。
-- [LangChain · loop engineering の技法](https://www.langchain.com/blog/the-art-of-loop-engineering): 4つの積み重ねループ。
-- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): エージェントループのための組み合わせブロック。
-- [MindStudio · loop engineering とは](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): 自律ワークフローのための目標条件。
-- [Lilian Weng · 自己改善のためのHarness engineering](https://lilianweng.github.io/posts/2026-07-04-harness/): 改善ループ、ループ外にゲート。
-- [LangChain · graph engineeringの3年](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): ノード、エッジ、サイクル、ノードとしてのエージェント。
-- [Anthropic · 効果的なエージェントの構築](https://www.anthropic.com/engineering/building-effective-agents): ワークフローとエージェントおよび5つのワークフロー形状。
-- [Google · なぜADK 2.0を作ったのか](https://developers.googleblog.com/en/why-we-built-adk-20/): コードでのルーティングとノード間のコンテキスト分離。
-- [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰著『深入理解AI Agent』（Apache-2.0）。第6章はevaluationのセクションを基礎とする。
+- [claude-code](https://github.com/yasasbanukaofficial/claude-code): 仕組みの名前と実装の場所をたどるために使った Claude Code のソースのバックアップ。
+- [hermes-agent](https://github.com/NousResearch/hermes-agent): 2 つめの研究対象にしたオープンソースの agent harness (MIT)。
+- [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 3 つめの研究対象にした最小構成の SWE agent (MIT)。
+- [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 4 つめの研究対象にした plugin ベースの agent harness (MIT)。
+- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): コード起点の harness 再構成と、セクションの組み立て方。
+- [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skill における段階的な開示のレベル。
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache の区切り、TTL、価格、最小 token 数。
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop の構成要素と成熟度レベル。
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): 積み重なる 4 つの loop。
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): agent loop のための構成要素の組み合わせ方。
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): 自律的なワークフローの終了条件。
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): 改善の loop と、loop の外に置くゲート。
+- [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): ノード、辺、循環、そしてノードとしての agent。
+- [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): ワークフローと agent の違い、および 5 つのワークフロー類型。
+- [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): コードで書くルーティングと、ノード間の context 分離。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰 著『深入理解 AI Agent』(Apache-2.0)。第 6 章が評価のセクションの土台です。

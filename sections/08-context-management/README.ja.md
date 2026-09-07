@@ -2,37 +2,37 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> 長時間のセッションはコンテキスト制限内に保ちます。
+> 長い session を context の上限内に保ちます。
 
-`messages[]` は実行中に増加します。 tool result、アシスタントの応答、およびユーザーの順番ごとにテキストが追加されます。セッションが長いと、最終的にはモデルのコンテキスト制限に達します。
+`messages[]` は実行中に伸びます。tool result、assistant の返答、ユーザーの turn が、それぞれテキストを足していきます。長い session はいずれモデルの context の上限に達します。
 
-Context management はセッションを使用可能な状態に保ちます。次のモデル呼び出しの前に、古いコンテンツを削除、スタブ、永続化、または要約します。
+context management は session を使える状態に保ちます。次のモデル呼び出しの前に、古い内容を削除、スタブ化、退避、または要約します。
 
-コンテキストが満たされると、次のようになります。
+context が埋まると、次のことが起きます。
 
-1. API はリクエストを拒否できます。
-2. 通話が遅くなり、通話料が高くなります。
-3. 古くてあまり役に立たないコンテンツが現在のタスク情報と競合します。
+1. API がリクエストを拒否することがあります。
+2. 呼び出しが遅くなり、費用も増えます。
+3. 古くて役に立たない内容が、いま必要なタスクの情報と競合します。
 
-3 番目の項目には、context rot という名前が付いています。無関係なテキストが積み重なると、モデルが適切な事実を見つける頻度が低くなります。
-これは、ウィンドウがいっぱいになるかなり前に開始されます。エージェントは実行を続けます。それはより悪い決定をするだけです。
+3 つめには名前があります。context rot です。無関係なテキストが積み上がるほど、モデルは正しい事実を見つけにくくなります。
+これは window が埋まるずっと前から始まります。agent は動き続けます。ただ、判断が悪くなります。
 
-したがって、圧縮は適合性とコストだけを重視するものではありません。コンテキスト内学習は、推論よりも検索に似ています。
-モデルは、書き留められた事実を見つけることができます。何十ターンにもわたって広がる事実を組み合わせるのは苦手です。
-結論を一度書き留めるほうが、呼び出しごとにモデルに再度結論を導出させるよりもコストがかかりません。
-したがって、要約が適切であれば、ウィンドウにまだ余裕がある場合でも、回答が向上します。
+つまり compaction は、収まるかどうかと費用だけの話ではありません。文脈内学習は、推論よりも検索に近い働きをします。
+モデルは、書かれている事実なら見つけられます。何十もの turn に散らばった事実を組み合わせるのは苦手です。
+結論を一度書き留めるほうが、毎回の呼び出しでモデルに導き直させるより安上がりです。
+だから良い要約は、window にまだ余裕があるときでも答えを良くします。
 
-このレイヤーがないと、プロンプトが適合しなくなると、長いタスクは失敗します。
+このレイヤがないと、prompt が収まらなくなった時点で長いタスクは失敗します。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/08-context-management.png)
+![Mechanism diagram](assets/08-context-management.png)
 
-要約する前に安価なリデューサーを使用してください。安価なリデューサーはローカルであり、ほとんどロスレスです。要約にはモデル呼び出しがかかり、詳細が失われる可能性があります。
+要約の前に、安価な削減手段を使います。安価な削減手段は局所的で、ほとんど情報を失いません。要約はモデル呼び出しの費用がかかり、細部を失うことがあります。
 
-Claude Code は階層化された順序を使用します。
+Claude Code は層になった順序を使います。
 
 ```text
 budget   -> persist huge tool results to disk, leave a preview
@@ -44,9 +44,9 @@ auto     -> LLM summarizes the whole history into one message
 reactive -> truncate the head and re-summarize, with a retry cap
 ```
 
-順序が重要です。たとえば、大きな tool result は、パスが本体をスタブに置き換える前に永続化する必要があります。
+順序が重要です。たとえば大きな tool result は、どの pass がその本体をスタブに置き換えるより先に、退避しておくべきです。
 
-### 新機能: 削減パス
+### 本節の追加: 削減の pass
 
 ```python
 def manage(messages, summarizer=None):                 # src/context.py, run every turn
@@ -57,15 +57,15 @@ def manage(messages, summarizer=None):                 # src/context.py, run eve
     return messages
 ```
 
-- `manage` は毎ターン安いパスを実行します。
-- `_budget` は、サイズが大きいツールの結果をディスクに書き込み、短いプレビューを残します。
-- `_micro` は古いツール結果ボディをスタブします。
-- `_auto` は最初のターンと最近の末尾を保持し、その後中間を要約します。
-- `summarizer=None` は、デモで非可逆要約を無効にします。
+- `manage` は安価な pass を毎 turn 走らせます。
+- `_budget` は大きすぎる tool result をディスクに書き、短いプレビューを残します。
+- `_micro` は古い tool result の本体をスタブにします。
+- `_auto` は最初の turn と直近の末尾を残し、中間を要約します。
+- `summarizer=None` にすると、デモでは情報を失う要約が無効になります。
 
-### 統合方法
+### 既存の構成への組み込み
 
-Context management は、各モデル呼び出しの前に実行されます。
+context management は、モデル呼び出しのたびにその前で走ります。
 
 ```python
 for _ in range(max_steps):                             # src/loop.py
@@ -74,89 +74,89 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-このセクションではループ本体自体を変更します。前のセクションでは、ツールまたはディスパッチ動作を追加し、ループはそのままにしておきました。
-コンテキスト削減はすべてのモデル呼び出しの前に実行する必要があるため、ループ内で実行する必要があります。
+このセクションは loop の本体そのものを変えます。これまでのセクションは tool や dispatch の振る舞いを足すだけで、loop には触れませんでした。
+context の削減はモデル呼び出しのたびにその前で走らなければならないので、loop の中に置く必要があります。
 
-ループは依然として同じ不変条件を維持します。つまり、有効な `messages[]` を使用してモデルを呼び出し、応答とツールの結果を追加します。
+loop の不変条件は変わりません。妥当な `messages[]` でモデルを呼び、返答と tool result を追加します。
 
-### コントラスト: こぼれたツール出力
+### 対照: 書き出される tool 出力
 
-Claude Code とこのセクションの `_budget` は両方とも、所定の場所にある巨大な tool result を縮小します。切り取られたテキストは消えます。
+Claude Code とこのセクションの `_budget` は、どちらも大きな tool result をその場で縮めます。切られたテキストは失われます。
 
-deepseek-harness は何が起こったのか決して編集しません。セッション ログは追加されるだけであり、モデルに表示されるメッセージはそのログの投影です。
-リダクションは、どのスパンを置き換えるかを示すもう 1 つのログ イベントであるため、再開またはフォークされたセッションでは同じビューが再生されます。
+deepseek-harness は起きたことを編集しません。session ログには追記しかせず、モデルが見る messages はそのログの投影です。
+削減はログに載るもう 1 つのイベントで、どの範囲を置き換えるかを示します。だから再開や fork をしても同じ見え方が再現されます。
 
-大きなツールの出力は、その前に別のパスをたどります。インライン バイト キャップを超えた結果は、ツールが戻った瞬間にスピル ストアに送られます。
-ストアは全文を保存し、ロケーターを返します。コンテキスト内に残るのは、先頭と末尾のプレビュー、そのロケーター、およびそれを読み取るか grep するためのヒントです。
-したがって、出力にはまだ到達可能です。モデルは、残りが必要なときにファイルを要求します。
+大きな tool の出力は、それ以前の別経路を通ります。インラインのバイト上限を超えた結果は、tool が返った時点で spill store に入ります。
+store は全文を保存し、参照先を返します。context に残るのは先頭と末尾のプレビュー、その参照先、そして読むか grep せよという案内です。
+つまり出力にはまだ手が届きます。残りが必要になったとき、モデルはそのファイルを求めます。
 
-[`src/spill.py`](src/spill.py) はこれを取り除いたものです。これはコントラスト デモであり、`manage()` に接続されていないため、後のセクションでは同じパスが引き継がれます。
+[`src/spill.py`](src/spill.py) はこれを削ぎ落としたものです。対照のためのデモであり、`manage()` には接続していません。だから後のセクションは同じ pass をそのまま引き継ぎます。
 
 ### さらに読む
 
-これは `src/` にはありません。これは ai-agent-book からのものであり、表内のシステムについては確認されていません。
+ここに書くことは `src/` にはありません。ai-agent-book に基づくもので、表にあるシステムで確認が取れているわけではありません。
 
-**スタブは毎回同じ文字列である必要があります。** tool result を置き換えるテキストはプレフィックスの一部であるため、バイト同一である必要があります。
-最初の交換時に選択し、セッションがディスクから復元された後も含めて再利用します。
-新しいタイムスタンプまたは新しいパスを使用して再レンダリングされるスタブは、プレフィックスを変更し、プレフィックスがなくなった後のキャッシュを変更します。
+**スタブは毎回同じ文字列でなければならない。** tool result を置き換えるテキストは prefix の一部なので、バイト単位で同一でなければなりません。
+最初に置き換えたときに決めて、それを使い回します。session をディスクから復元した後も同じです。
+新しいタイムスタンプや新しいパスで描き直されるスタブは prefix を変え、それ以降のキャッシュを失わせます。
 
-**圧縮とキャッシュは逆のことを望んでいます。** 圧縮は履歴を書き換えます。キャッシュは、履歴を放置した場合にのみ効果を発揮します。
-編集するたびに編集ポイント以降のキャッシュが無効になるため、次の呼び出しでプレフィックス全体が再読み取りされます。
-毎ターン少しずつトリミングすると、その再構築が毎ターン行われます。トークンのしきい値でさらに大きな削減を 1 回実行すると、それが 1 回発生します。
-いずれの場合も、圧縮は API 呼び出し間で実行され、呼び出し内では実行されません。
+**圧縮とキャッシュは正反対を望む。** compaction は履歴を書き換えます。キャッシュは履歴に手を触れないときにこそ効きます。
+編集はその地点から先のキャッシュを無効にするので、次の呼び出しは prefix 全体を読み直します。
+毎 turn 少しずつ削れば、その作り直しも毎 turn 起きます。token のしきい値で大きめの削減を 1 回行えば、作り直しは 1 回で済みます。
+どちらにせよ compaction は API 呼び出しの間に走り、呼び出しの内側では走りません。
 
-**API はサーバー上でこのパスを実行できます。** Claude API でのコンテキスト編集はプレフィックスから古いツールの結果を削除するため、harness にはそのためのコードが付属しません。
-それでもキャッシュは一度再構築されます。これにより、毎ターンではなく、オーダーのオーバーフローエンド近くになります。
+**この pass はサーバー側でも走らせられる。** Claude API の context editing は古い tool result を prefix から落とすので、harness 側のコードは要りません。
+それでもキャッシュは一度作り直されます。だからこれは毎 turn ではなく、順序の中では溢れる側の端に位置します。
 
-**セッション全体ではなく、現在のタスクの概要を書きます。** 起こったことすべての要約は、次の通話で必要なものではありません。
-代わりに 1 つの質問をしてください。次の呼び出しには何が必要ですか?これらを最も優先度の高いものから順に保持してください。
+**要約は session 全体ではなく、いまのタスクのために書く。** 起きたこと全部の再掲は、次の呼び出しが必要とするものではありません。
+代わりに問いを 1 つ立てます。次の呼び出しがまだ必要としているものは何か。優先度の高い順に、次を残します。
 
-- アーキテクチャと設計に関する決定はすでに行われています。
-- 作成または変更されたファイル、およびその中で何が変更されたか。
-- 最後のチェックまたはテストの合格および不合格のステータス。
-- TODO と現在のステップを開きます。
+- すでに決まったアーキテクチャと設計の判断。
+- 作成または変更したファイルと、その変更内容。
+- 直近の検査やテストの合否。
+- 未解決の TODO と現在の手順。
 
-何かを実行する必要がある場合は、生のツールの出力が最初に実行されます。予算パスではすでに大きな結果がディスクに書き込まれているため、エージェントは重要なときに結果を読み戻すことができます。
+何かを落とさなければならないとき、最初に落とすのは加工前の tool の出力です。budget の pass が大きな結果をすでにディスクへ書いているので、必要になれば agent が読み戻せます。
 
 ---
 
-## システムごと
+## システム別
 
-各エージェントがスペースを空けることをどのように決定し、何を削除するかを決定します。
+各 agent がどう場所を空けると判断し、何を取り除くか。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **長所** |長いセッションは存続します。削減は低コストで、出力は再読み取り可能です。 |スケジュールや調整をする必要はありません。監査が容易。 |歴史は決して破壊されることはありません。 |
-| **短所** |パスには順序付けルールが必要です。概要では詳細が省略される場合があります。 |歴史は成長するばかりです。ロングランはオーバーフローで停止します。 |ログはディスク上で成長するため、ロックとフォールドが必要になります。 |
-| **理由** |インタラクティブセッションは無制限であるため、ウィンドウはいっぱいになります。 |予算が最初に実行を終了すると仮定します (セクション 21)。 |ログは真実なので、視野だけが縮小します。 |
-| **方法: トリガー** |トークンのしきい値と、`prompt_too_long` のフォールバック。 |レンダリング時のすべての観察。 |各ステップで圧力を測定し、オーバーフローを確認しました。 |
-| **方法: 戦略** |最初に安価なリデューサー (永続、スタブ)、最後に概要を示します。 |長い出力を先頭と末尾に切り詰めます。圧縮はありません。 |流出、剪定、そして要約イベント。 |
-| **方法: 予算** |出力バッファと安全バッファを予約します。 |観測ごとに 10,000 文字。 |配線モデルごとの比率: 0.8 でコンパクト、0.16 を維持。 |
+| **利点** | 長い session が生き残る。削減は安価で、出力も読み直せる。 | 予定を組むことも調整することもない。監査しやすい。 | 履歴が壊されることはない。 |
+| **欠点** | pass に順序のルールが要る。要約は細部を落とすことがある。 | 履歴は増える一方。長い実行は溢れて死ぬ。 | ログがディスク上で増え、ロックと畳み込みが要る。 |
+| **理由** | 対話的な session は終わりが決まらないので、window は埋まる。 | 予算が先に実行を終わらせる前提 (セクション 21)。 | ログが真実なので、縮むのは見え方だけ。 |
+| **方法: 起動条件** | token のしきい値と、`prompt_too_long` での予備の経路。 | 観測のたび、描画の時点で。 | 各手順で測る圧力と、確認された溢れ。 |
+| **方法: 戦略** | 安価な削減が先 (退避、スタブ)、要約は最後。 | 長い出力を先頭と末尾に切り詰める。compaction はなし。 | spill、削除、その後に要約のイベント。 |
+| **方法: 予算** | 出力と安全のための余裕を確保する。 | 観測 1 件につき 1 万文字。 | 振り分けたモデルごとの比率。0.8 で compaction、0.16 を残す。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **概要では必要な詳細が失われます。** 完全な出力を保持し、必要に応じてファイルを再読み込みします。
-- **圧縮が繰り返し失敗します。** 再試行キャップまたはサーキット ブレーカーを使用してください。
-- **とにかく 1 つの大きなターンがオーバーフローします。** `prompt_too_long` には、境界のある最後の手段のトリムで反応します。
-- **パス順序が間違っているとデータが失われます。** 古い結果をスタブする前に、大きな結果を保持します。
-- **壊れたツール ペア。** `tool_use` を、一致する `tool_result` から分割しないでください。
-- **スタブ テキストがドリフトする。** 新しいタイムスタンプまたはパスで再レンダリングされるプレビューでは、プレフィックスが変更され、キャッシュが削除されます。初めて使用するときは文字列をフリーズしてください。
-- **毎ターンのトリミング。** 編集ごとに編集ポイント以降のキャッシュが無効になるため、小さな削減が多くなると、1 回のバッチ パスよりも多くのコストがかかります。しきい値でトリガーします。
-- **モデルは概要を信頼します。** 注入された状態は事実として読み取られ、再チェックされることはほとんどありません。間違った要約を検出できるように、永続化されたオリジナルへのポインタを残しておきます。
+- **要約が必要な細部を落とす。** 出力の全文を退避し、必要なときにファイルを読み直す。
+- **compaction が繰り返し失敗する。** リトライの上限かサーキットブレーカーを使う。
+- **1 つの巨大な turn がそれでも溢れる。** `prompt_too_long` に反応し、範囲を区切った最後の手段の切り詰めを行う。
+- **pass の順序が誤ってデータを失う。** 古い結果をスタブ化する前に、大きな結果を退避する。
+- **tool の対応が壊れる。** `tool_use` と対応する `tool_result` を切り離さない。
+- **スタブのテキストがぶれる。** 新しいタイムスタンプやパスで描き直されるプレビューは prefix を変え、キャッシュを失わせる。最初に使った文字列を固定する。
+- **毎 turn 切り詰める。** 編集はその地点から先のキャッシュを無効にするので、小さな削減を何度も行うと 1 回のまとめた pass より高くつく。しきい値で起動する。
+- **モデルが要約を信じる。** 注入された状態は事実として読まれ、再確認されることはめったにない。退避した原本への参照を残し、誤った要約を捕まえられるようにする。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) 07 を前方に繰り上げて次を追加します。
+[`src/`](src/) は 07 を引き継ぎ、次を追加します。
 
-- [`context.py`](src/context.py): `budget`、`micro`、および `auto` パスは、`manage` を通過します。
-- [`loop.py`](src/loop.py): 毎ターンの先頭で `context.manage()` を呼び出します。
-- [`spill.py`](src/spill.py): deepseek-harness の対照: 特大の結果は全体として保存され、コンテキストはプレビューとパスを保持します。
-- [`test.py`](src/test.py): 各パスを個別にチェックし、さらに全文を読み取り可能な状態に保つスピルをチェックします。
-- [`demo.py`](src/demo.py): context management が接続されたループを駆動します。
+- [`context.py`](src/context.py): `budget`、`micro`、`auto` の pass を `manage` から走らせる。
+- [`loop.py`](src/loop.py): 毎 turn の先頭で `context.manage()` を呼ぶ。
+- [`spill.py`](src/spill.py): deepseek-harness との対照。大きすぎる結果を丸ごと保存し、context にはプレビューとパスを残す。
+- [`test.py`](src/test.py): 各 pass を単独で検査し、加えて全文が読める spill を検査。
+- [`demo.py`](src/demo.py): context management を組み込んだ loop を動かす。
 
 ```bash
 python sections/08-context-management/src/test.py         # offline checks, no key
@@ -165,21 +165,21 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code):
-  `services/compact/autoCompact.ts`、`microCompact.ts`、`timeBasedMCConfig.ts`、`compact.ts`、`utils/toolResultStorage.ts`、`query.ts`、 `query/tokenBudget.ts`。
-- [mini-swe-agent ソース](https://github.com/swe-agent/mini-swe-agent): `config/mini.yaml`、`models/litellm_model.py` の `abort_exceptions` の観測テンプレート。
-- [deepseek-harness ソース](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
-  `packages/compaction/compaction/src/index.ts`、`packages/compaction/compaction-basic/README.md`、`packages/llm/token-meter/src/index.ts`、
-  `packages/spill/spill/src/index.ts`、`packages/spill/spill-policy/README.md`、`docs/subsystems/compaction.md`、`docs/subsystems/session.md`。
-- [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code): セクション フレーム。
-- [ai-agent-book · Chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》、李博杰、中国語の原文は正規版です):
-  コンテキストの腐敗、取得としてのコンテキスト内学習、圧縮とキャッシュの相互作用、保持優先順位を備えたタスク認識圧縮、
-  API レベルのコンテキスト編集、凍結されたツール結果のスタブ、およびモデルが挿入された概要を事実として読み取るという発見。
-- [Lost in the Middle](https://arxiv.org/abs/2307.03172) (Liu et al.、TACL 2024): 長いコンテキストの途中に配置されたファクトの検索精度が低下します。根拠コンテキスト腐ってます。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `services/compact/autoCompact.ts`, `microCompact.ts`, `timeBasedMCConfig.ts`, `compact.ts`, `utils/toolResultStorage.ts`, `query.ts`, `query/tokenBudget.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the observation template in `config/mini.yaml`, `abort_exceptions` in `models/litellm_model.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/compaction/compaction/src/index.ts`, `packages/compaction/compaction-basic/README.md`, `packages/llm/token-meter/src/index.ts`,
+  `packages/spill/spill/src/index.ts`, `packages/spill/spill-policy/README.md`, `docs/subsystems/compaction.md`, `docs/subsystems/session.md`.
+- [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  context rot, in-context learning as retrieval, the compression and cache interplay, task-aware compression with retention priorities,
+  API-level context editing, the frozen tool-result stub, and the finding that models read an injected summary as fact.
+- [Lost in the Middle](https://arxiv.org/abs/2307.03172) (Liu et al., TACL 2024): retrieval accuracy drops for facts placed in the middle of a long context. Grounds context rot.
 
-推定。上記の Claude Code ソース リポジトリには完全には存在しません。
+推測を含みます。上記の Claude Code のソースリポジトリには完全には現れていません。
 
-- `snipCompact.ts`: `snipCompactIfNeeded(messages)` 呼び出しサイトのみが表示されます。
-- `reactiveCompact.ts`: リアクティブ パスは `compact.ts` にあるようです。
+- `snipCompact.ts`: `snipCompactIfNeeded(messages)` の呼び出し箇所だけが見えています。
+- `reactiveCompact.ts`: reactive の経路は `compact.ts` にあるようです。

@@ -2,37 +2,37 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> 作業を依存関係のある永続的なタスクとして保存します。
+> 作業を、依存関係を持つ永続的な task として保存します。
 
-セクション 5 の todo リストはメモリ内にのみ存在し、プロセスが終了すると消えます。また、どのタスクが別のタスクを待たなければならないのかもわかりません。
+section 5 の todo リストは memory 上にしかなく、プロセスが終われば消えます。どの task が別の task を待つべきかも表せません。
 
-タスク システムは、作業をレコードとしてディスクに保存します。各レコードには依存関係がある可能性があります。ワーカーは、ブロッカーが完了するとタスクを要求します。
+task system は作業をディスク上のレコードとして保存します。各レコードは依存関係を持てます。worker は自分をふさぐものが完了したときに task を確保します。
 
-タスク システムは次のことを行う必要があります。
+task system は次を満たす必要があります。
 
-1. 各作業単位を耐久性のあるオブジェクトとして保存します。
-2. 順序をデータとして表現します。
-3. ターン、セッション、クラッシュを生き延びます。
-4. 1 人のワーカーのみがタスクを要求できるようにします。
+1. 作業の単位を、それぞれ永続的なオブジェクトとして保存すること。
+2. 順序をデータとして表すこと。
+3. turn、session、クラッシュをまたいで残ること。
+4. 1 つの task を確保できる worker を 1 つだけにすること。
 
-このレイヤーがないと、プランは現在の context window にのみ存在します。
+この層がないと、計画は今の context ウィンドウの中にしか存在しません。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/12-task-system.png)
+![Mechanism diagram](assets/12-task-system.png)
 
-タスクは、ディスク上の JSON レコードです。 `blockedBy` および `blocks` は依存関係エッジです。ファイル ロックはクレームをシリアル化します。
+task はディスク上の JSON のレコードです。`blockedBy` と `blocks` が依存関係の辺です。ファイルの lock が確保を直列化します。
 
-- ID は連続しており、再利用されることはありません。
-- 作成、取得、更新、およびリストはプレーンな CRUD です。
-- `claim` はゲートです。所有者を割り当てる前に、所有権とブロッカーをチェックします。
-- ディスクグラフには計画が保存されます。別の runtime は、アクティブなバックグラウンド作業を追跡できます。
+- ID は連番で、再利用しません。
+- 作成、取得、更新、一覧は、ふつうの CRUD です。
+- `claim` がゲートです。所有者を割り当てる前に、所有状況とふさいでいるものを確認します。
+- ディスク上のグラフが計画を保存します。実行中のバックグラウンドの作業は、別の runtime が追えます。
 
-### 新機能: タスク ストアとクレーム ゲート
+### 新規: task の保存先と claim のゲート
 
-`create` は ID を割り当て、タスクを書き込みます。
+`create` は id を割り当てて task を書き込みます。
 
 ```python
 def create(self, subject, blocked_by=()):              # src/tasks.py
@@ -44,7 +44,7 @@ def create(self, subject, blocked_by=()):              # src/tasks.py
     return task
 ```
 
-`claim` はロックされています。これにより、ワーカー間での check-then set が安全になります。
+`claim` は lock されています。これで、確認してから書き込む処理が worker をまたいでも安全になります。
 
 ```python
 def claim(self, tid, owner):                           # src/tasks.py
@@ -61,52 +61,52 @@ def claim(self, tid, owner):                           # src/tasks.py
         return {"ok": True, "task": task}
 ```
 
-### 統合方法
+### 統合のしかた
 
-タスク ツールはストアの薄いラッパーです。
+task の tool は、保存先を薄く包んだものです。
 
 ```python
 for t in task_tools(TaskStore(dir)):                   # src/demo.py
     reg.register(t)                                    # TaskCreate / TaskUpdate / TaskGet / TaskList
 ```
 
-ループは変わりません。モデルは、他のツールと同様に、`TaskCreate`、`TaskUpdate`、`TaskGet`、および `TaskList` を呼び出します。
+loop は変わりません。モデルは `TaskCreate`、`TaskUpdate`、`TaskGet`、`TaskList` を、他の tool と同じように呼び出します。
 
 ---
 
-## システムごと
+## システム別
 
-永続的なタスク グラフがどのように形成され、進化するか。
+永続的な task のグラフをどう形作り、どう進めるか。
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **長所** |ファイルベースのタスクはクラッシュしても生き残り、多くのワーカーをサポートします。 |タスクの状態はセッション ログに反映されるため、リプレイ、フォーク、再開が自由に行えます。 |
-| **短所** |読み取り、書き込み、ロックにコストがかかります。記録には検証が必要です。 |依存関係エッジやクレーム ゲートはありません。セッションごとに 1 つの目標。 |
-| **理由** |メモリ内のリストはプロセスとともに消滅するため、計画はそれより長く存続する必要があります。 |セッション ログが唯一の真実の情報源であるため、タスクの状態はイベントです。 |
-| **方法: タスクの記録** |タスクごとの JSON ファイル: ID、件名、ステータス、所有者、エッジ。 |リスト全体のスナップショットと、フェーズとラウンドキャップを含む 1 つの目標。 |
-| **方法: 依存関係** | `blockedBy` および `blocks` エッジ。ブロッカーが終了するまで、クレームは拒否されます。 |なし。順序はリスト順のみです。 |
-| **方法: 永続性** |タスクごとに 1 つのファイルと、発行された最大の ID。スイッチは Todo を置き換えることができます。 |ロード時に再生されるセッション イベント。自己継続は決して保存されません。 |
-| **方法: ライフサイクル** | `pending -> in_progress -> completed`、クレームにロックがかかります。 |目標フェーズ: アクティブ、一時停止、ブロック、完了。編集には人間が必要です。 |
+| **利点** | ファイルに支えられた task はクラッシュを生き延び、多数の worker に対応する。 | task の状態が session のログに載るので、再生、fork、再開がただで付いてくる。 |
+| **欠点** | 読み込み、書き込み、lock のコストがかかる。レコードには検証が要る。 | 依存関係の辺も claim のゲートもない。session ごとにゴールは 1 つ。 |
+| **理由** | memory 上のリストはプロセスと共に死ぬので、計画はそれより長生きしなければならない。 | session のログが唯一の真実の源なので、task の状態はイベントである。 |
+| **方法: task record** | task ごとに JSON ファイルが 1 つ。id、件名、状態、所有者、辺。 | リスト全体のスナップショットと、フェーズとラウンド上限を持つゴール 1 つ。 |
+| **方法: dependencies** | `blockedBy` と `blocks` の辺。ふさいでいるものが終わるまで確保は拒否される。 | なし。リストの並び順だけが順序である。 |
+| **方法: persistence** | task ごとに 1 ファイル、それと発行済みの最大 id。切り替えで todo を置き換えられる。 | session のイベントを、読み込み時に再生する。自己継続は保存しない。 |
+| **方法: lifecycle** | `pending -> in_progress -> completed`。確保には lock が付く。 | ゴールのフェーズは active、paused、blocked、complete。編集には人間が要る。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **依存関係サイクル** 2 つのタスクが相互にブロックされる可能性があります。グラフを非周期的に保つか、サイクル チェックを追加します。
-- **レースを主張します。** 2 人のエージェントが同じタスクに挑戦できます。クレームパスをロックします。
-- **孤立した進行中のタスク。** ワーカーは要求後に死亡する可能性があります。ワーカー終了時に所有権をクリアします。
-- **無効なレコードです。** 手動で編集されたファイルまたは古いファイルはスキーマと一致しない可能性があります。安全に解析し、悪いレコードをスキップします。
-- **永続システムが無効になっています。** メモリ内の Todo は依然として失われる可能性があります。存続する必要がある作業には、ディスクバックアップのタスクを使用します。
+- **依存関係の循環。** 2 つの task が互いをふさぎうる。グラフを非循環に保つか、循環のチェックを足す。
+- **確保の競合。** 2 つの agent が同じ task を狙いうる。確保の経路を lock する。
+- **孤立した in_progress の task。** worker は確保した後に死にうる。worker の終了時に所有者を消す。
+- **不正なレコード。** 手で編集されたファイルや古いファイルは、スキーマに合わないことがある。安全にパースし、壊れたレコードは飛ばす。
+- **永続的な仕組みを無効にしている。** memory 上の todo は依然として失われうる。残らなければならない作業には、ディスクに支えられた task を使う。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) は 11 を繰り上げて次のように追加します。
+[`src/`](src/) は 11 を引き継ぎ、次を追加します。
 
-- [`tasks.py`](src/tasks.py): ディスクバックアップの `TaskStore`、クレーム ゲート、および `Task*` ツール。
-- [`test.py`](src/test.py): 依存関係、クレーム ゲート、および 10 エージェントのクレーム レースをチェックします。
-- [`demo.py`](src/demo.py): 3 つのタスク プランを JSON ファイルとして保持します。
+- [`tasks.py`](src/tasks.py): ディスクに支えられた `TaskStore`、claim のゲート、`Task*` の tool。
+- [`test.py`](src/test.py): 依存関係、claim のゲート、10 個の agent による確保の競合を確認します。
+- [`demo.py`](src/demo.py): 3 つの task からなる計画を JSON ファイルとして永続化します。
 
 ```bash
 python sections/12-task-system/src/test.py         # offline checks, no key
@@ -115,10 +115,10 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code): `utils/tasks.ts`、`Task.ts`、および `Task*Tool/` ディレクトリ。
-- [deepseek-harness ソース](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
-  `packages/goal/goal/src/index.ts`、`packages/goal/goal-round-driver/README.md`、`packages/todo/tool-todo/README.md`、
-  `docs/subsystems/goal.md`、`docs/persistence-catalog.md`。
-- [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code): セクションのフレーム化。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `utils/tasks.ts`, `Task.ts`, and the `Task*Tool/` directories.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/goal/goal/src/index.ts`, `packages/goal/goal-round-driver/README.md`, `packages/todo/tool-todo/README.md`,
+  `docs/subsystems/goal.md`, `docs/persistence-catalog.md`.
+- [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code): section の枠組み。

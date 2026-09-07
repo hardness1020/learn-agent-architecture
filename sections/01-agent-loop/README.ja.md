@@ -2,40 +2,40 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> 1 つのループは、応答するかツールを要求するまでモデルを呼び出し続けます。
+> 1 つの loop が、モデルが答えるか tool を要求するまでモデルを呼び続けます。
 
-生のモデル呼び出しはワンショットです。メッセージを送信すると、1 つの応答が返されます。
+素のモデル呼び出しは 1 回きりです。messages を送ると、応答が 1 つ返ります。
 
-エージェントには別の手順が必要です。モデルが要求したツールを実行し、結果を追加して、モデルを再度呼び出す必要があります。同じ `messages[]` はターン全体で成長し続ける必要があります。
+agent にはもう 1 段が要ります。モデルが要求した tool を実行し、結果を追記し、もう一度モデルを呼ばなければなりません。同じ `messages[]` が turn の間ずっと伸び続ける必要があります。
 
-ループは次のことを行う必要があります。
+loop は次のことをしなければなりません。
 
-1. 複数の通話にわたって会話状態を維持します。
-2. tool use と最終的な答えを検出します。
-3. 要求されたツールを実行し、結果を追加します。
-4. 停止するまでモデルを再度呼び出します。
+1. 呼び出しをまたいで会話の状態を保ちます。
+2. tool の使用と最終回答を見分けます。
+3. 要求された tool を実行し、結果を追記します。
+4. モデルが止まるまで、もう一度モデルを呼びます。
 
-このループがないと、モデルはアクションについて推論できますが、行動することはできません。ループが間違っている場合は、停止が早すぎるか、永久に実行されます。
+この loop がなければ、モデルは行動について推論できても行動できません。loop が間違っていれば、早すぎる段階で止まるか、永遠に走り続けるかのどちらかになります。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/01-agent-loop.png)
+![Mechanism diagram](assets/01-agent-loop.png)
 
-1 つの `messages[]` 上に 2 つのループがあります。
+1 つの `messages[]` の上に loop が 2 つあります。
 
-チャット ウィンドウを想像してください。 「台北の天気はどうですか？傘を持ったほうがいいですか？」と尋ねます。
-モデルは、最初に天気ツールを呼び出し、次に結果を確認してから降雨確率ツールを呼び出し、その後にのみ応答することができます。
-**そのため、モデルは 1 ターン以内にツール呼び出しを挟んで複数回呼び出されることがよくあります。**
-あなたの質問から最終的な回答までの全体が内側のループ、つまり 1 ユーザー ターンです。
-モデルを呼び出し、`stop_reason` をチェックし、必要に応じてツールを実行し、結果を追加し、モデルがこのターンの応答を返すまで繰り返します。
+チャット画面を思い浮かべてください。「台北の天気は。傘は持っていくべき。」と尋ねたとします。
+モデルはまず天気の tool を呼び、その結果を見てから降水確率の tool を呼び、そのうえでようやく返事をするかもしれません。
+**つまり 1 つの turn の中で、モデルは tool 呼び出しを挟みながら何度も呼び出されるのが普通です。**
+あなたの質問から最終回答までのその一続きが inner loop、すなわち 1 つのユーザー turn です。
+inner loop はモデルを呼び、`stop_reason` を調べ、必要なら tool を実行し、結果を追記し、モデルがこの turn の回答を出すまで繰り返します。
 
-次に「明日はどうですか？」と尋ねます。同じウィンドウ内で。それは新たな展開です。
-外側のループは、文字列が 1 つの会話に変わった後に変化するものです。
-新しいターンはそれぞれ同じ `messages[]` に追加されるため、モデルが「明日」と答えても、台北について質問したことがわかります。
+そのあと同じ画面で「明日は。」と尋ねます。これが新しい turn です。
+outer loop は、turn を次々とつないで 1 つの会話にするものです。
+新しい turn は同じ `messages[]` に追記されるので、モデルは「明日」に答えるときも、あなたが台北について尋ねたことを見ています。
 
-内側のループは、呼び出し元が所有する `messages[]` を 1 ターンオーバーします。
+inner loop は、呼び出し側が所有する `messages[]` の上での 1 turn です。
 
 ```python
 def run_turn(messages, model, max_steps=10):        # src/loop.py · one turn over the shared messages[]
@@ -56,13 +56,13 @@ def run_turn(messages, model, max_steps=10):        # src/loop.py · one turn ov
     raise RuntimeError("hit max_steps without end_turn")
 ```
 
-- [`src/loop.py`](src/loop.py) の `run_turn()` は内側のループです。
-- `messages` は、Anthropic Messages 形式の共有状態です。
-- `max_steps` は、暴走ループの安全限界です。
-- `run_tool(name, input)` はツールを解決して実行し、`tool_result` のテキストを返します。
-- [`src/demo.py`](src/demo.py) の `model()` は 1 つの `client.messages.create` 呼び出しです。ループは 1 つのプロバイダーに依存しません。
+- [`src/loop.py`](src/loop.py) の `run_turn()` が inner loop です。
+- `messages` は Anthropic Messages 形式の共有状態です。
+- `max_steps` は暴走した loop に対する安全上限です。
+- `run_tool(name, input)` は tool を解決し、実行し、`tool_result` 用のテキストを返します。
+- [`src/demo.py`](src/demo.py) の `model()` は `client.messages.create` の呼び出し 1 回です。loop は特定のプロバイダに依存しません。
 
-外側のループは、ターンごとに 1 つのユーザー メッセージを追加し、バッファを保持します。
+outer loop は turn ごとにユーザーメッセージを 1 つ追記し、バッファを保ちます。
 
 ```python
 messages = []                                        # src/demo.py · the conversation, owned by the caller
@@ -71,51 +71,51 @@ for user_text in turns:                              # the outer loop: one itera
     reply = run_turn(messages, model)                # appends in place; turn N sees turns 1..N-1
 ```
 
-2 つの `stop_reason` 値がループを駆動します。
+loop を動かす `stop_reason` の値は 2 つです。
 
-- `tool_use`: ツールを実行し、結果を追加し、モデルを再度呼び出します。
-- `end_turn`: 最終的な答えを返します。デモは、`tool_use` 以外の値で停止します。
+- `tool_use`: tool を実行し、結果を追記し、もう一度モデルを呼びます。
+- `end_turn`: 最終回答を返します。デモは `tool_use` 以外のどの値でも停止します。
 
-`messages[]` は、このセッションの会話メモリ全体です。ツールの結果とアシスタントの応答の両方がそこに含まれます。次のモデル呼び出しでは、その完全な状態について推論が行われます。
+`messages[]` は、この session における会話の記憶そのものです。tool の結果もアシスタントの返答も、どちらもここに入ります。次のモデル呼び出しは、その全体の状態を踏まえて推論します。
 
-このベア ループには許可ゲートがありません。セクション 3 では、ツールの実行前にそのゲートを追加します。
+この素朴な loop には permission のゲートがありません。セクション 3 が、tool の実行の前にそのゲートを足します。
 
 ---
 
-## システムごと
+## システム別
 
-各エージェントがループをどのように所有し、いつ停止するかを決定する方法。
+各 agent が loop をどう所有し、いつ止めるかをどう決めるかです。
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **長所** |進行状況をストリーミングし、副作用を抑制し、ツールを並行して実行します。 |小さなループなので、読みやすく、監査も簡単です。 |スワップ可能なループ、インターセプト可能なフェーズ、再生されるログ。 |
-| **短所** |ループは、より大きな runtime 内にあります。 |副作用ゲート、ストリーミング、並列ツールはありません。 |最も可動する部分。ターン、ステップ、受信トレイの語彙が必要です。 |
-| **理由** | 1 つのコア ブランチを保持し、その周りに機能を追加します。 |ミニマルなループがポイントです。完了を検出するのはモデルではなく環境です。 |ループはピア間の 1 つの plugin です。 |
-| **方法: ループ ドライバー** |非同期ジェネレーター。ツールは 1 つのコントラクトを通じてプラグインされます。 | while ループ。モデルにコマンドを要求し、実行します。 |耐久性のあるイベント ログ上で交換可能な plugin。 |
-| **方法: 信号を停止します** | `stop_reason: end_turn`。 |環境は送信マーカーを認識し、`role: "exit"` を追加します。 |支払うべきものは何もなく、チェックポイントブロックもターンエンドの結果もありません。 |
-| **方法: 並列ツール** |はい。 1 つのモデル ターン内の呼び出しは並行して実行できます。 |いいえ。アクションは順番に実行されます。 |はい。排他的呼び出しは障壁を形成します。安全な呼び出しは、制限されたプールを共有します。 |
-| **方法: ストリーミング** |はい。モデル トークン、ツール呼び出し、ツールの結果が発生したときに生成されます。 |番号 |はい。ストリーム チャンクは永続イベントとしてセッション ログに記録されます。 |
+| **利点** | 進行のストリーミング、副作用のゲート、tool の並列実行。 | 極小の loop で、読むのも監査するのも簡単。 | 差し替え可能な loop、横取りできる各段階、再生できるログ。 |
+| **欠点** | loop はより大きなランタイムの内側。 | 副作用のゲートも、ストリーミングも、並列 tool もなし。 | 可動部が最多。turn、step、inbox の語彙が必要。 |
+| **理由** | 中心の分岐は 1 つに保ち、機能はその周りに追加。 | 最小の loop であること自体が狙い。完了を検出するのはモデルではなく環境。 | loop は対等な plugin のうちの 1 つ。 |
+| **方法: loop driver** | 非同期ジェネレータ。tool は 1 つの契約で接続。 | while loop。モデルにコマンドを求めて実行。 | 永続的なイベントログの上に載る、差し替え可能な plugin。 |
+| **方法: stop signal** | `stop_reason: end_turn`。 | 環境が提出マーカーを見つけ、`role: "exit"` を追記。 | 残務なし、checkpoint のブロックなし、または turn を終える結果。 |
+| **方法: parallel tools** | あり。1 つのモデル turn 内の呼び出しは並列に実行可能。 | なし。行動は順番に実行。 | あり。排他的な呼び出しが障壁になり、安全な呼び出しは上限付きのプールを共有。 |
+| **方法: streaming** | あり。モデルの token、tool 呼び出し、tool の結果を発生順に送出。 | なし。 | あり。ストリームの断片は永続イベントとして session log に記録。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **停止条件なし。** バグまたはツールのループは永久に実行される可能性があります。最大ステップまたはトークン制限を使用します。
-- **ループ中のコンテキスト オーバーフロー。** `messages[]` は増加するだけです。セクション 8 では、context management を追加します。
-- **部分的なツールの障害。** モデルが回復できるように、障害が発生したツールでも `tool_result` を返す必要があります。
-- **結果が失われます。** アシスタント ツールの呼び出しまたは tool result を削除すると、トランスクリプトが中断されます。両方を追加します。
+- **停止条件がない。** バグや tool の loop が永遠に走りえます。ステップ数か token の上限を使ってください。
+- **loop の途中で context があふれる。** `messages[]` は伸びる一方です。セクション 8 が context 管理を足します。
+- **tool の一部が失敗する。** 失敗した tool も `tool_result` を返さなければならず、そうしてモデルが立て直せます。
+- **結果が消える。** アシスタントの tool 呼び出しか tool の結果のどちらかを落とすと transcript が壊れます。両方を追記してください。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) は次のようにチェーンを開始します。
+[`src/`](src/) が連なりの起点で、次を含みます。
 
-- [`loop.py`](src/loop.py): 内部ループと共有 `messages[]`。
-- [`demo.py`](src/demo.py): 2 ターンのライブ デモ。ターン 2 はターン 1 がバッファーに留まるかどうかに依存します。
-- [`test.py`](src/test.py): ツールのディスパッチ、最終テキスト、およびマルチターン状態をオフラインでチェックします。
+- [`loop.py`](src/loop.py): inner loop と共有の `messages[]`。
+- [`demo.py`](src/demo.py): 2 turn の実デモ。turn 2 は turn 1 がバッファに残っていることに依存します。
+- [`test.py`](src/test.py): tool の dispatch、最終テキスト、複数 turn の状態に対するオフライン検査。
 
-セクション 2 から 11 では、この `src/` が引き継がれ、`loop.py` が進化し、セクションごとに 1 つのファイルが追加されます。
+セクション 2 から 11 はこの `src/` を引き継ぎ、`loop.py` を発展させながらセクションごとにファイルを 1 つ足していきます。
 
 ```bash
 python sections/01-agent-loop/src/test.py         # offline checks, no key
@@ -124,10 +124,10 @@ uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`、`query/`、`Tool.ts`。
-- [mini-swe-agent ソース](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`、`exceptions.py`、`environments/local.py`。
-- [deepseek-harness ソース](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
-  `docs/architecture.md`、`docs/agent-lifecycle.md`、`docs/subsystems/core.md`、`packages/core/agent-loop/src/agent.ts`、`packages/core/agent/src/types.ts`。
-- [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code): セクション フレーム。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `exceptions.py`, `environments/local.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) の `dsh-v0.1.0-rc.7`:
+  `docs/architecture.md`, `docs/agent-lifecycle.md`, `docs/subsystems/core.md`, `packages/core/agent-loop/src/agent.ts`, `packages/core/agent/src/types.ts`。
+- [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code): セクションの組み立て方。

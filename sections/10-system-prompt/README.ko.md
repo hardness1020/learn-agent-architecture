@@ -2,31 +2,31 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어**
 
-> 매 턴마다 라이브 상태에서 프롬프트를 생성합니다.
+> 매 turn마다 실시간 상태로 prompt를 만듭니다.
 
-system prompt는 에이전트의 기본 지침 세트입니다. 여기에는 정체성, 규칙, 도구, 프로젝트 맥락, 활성 기능이 설명되어 있습니다.
+system prompt는 agent의 상시 지시 모음입니다. 정체성, 규칙, tool, 프로젝트 context, 활성 기능을 기술합니다.
 
-실제 에이전트에서는 이것이 하나의 하드코딩된 문자열로 유지될 수 없습니다.
+실제 agent에서는 이것을 하드코딩된 문자열 하나로 둘 수 없습니다.
 
-도구, 메모리, 출력 스타일, MCP 서버 및 모드는 세션마다 달라질 수 있습니다. 프롬프트는 실제로 활성화된 것을 설명해야 합니다.
+tool, memory, 출력 스타일, MCP 서버, 모드는 session마다 달라질 수 있습니다. prompt는 실제로 활성화된 것을 기술해야 합니다.
 
-프롬프트 조립기는 세 가지 문제를 해결합니다:
+prompt 조립기는 세 가지 문제를 해결합니다.
 
-1. 새로운 기능 텍스트는 명확한 위치를 갖습니다.
-2. 비활성 기능 텍스트는 건너뛸 수 있습니다.
-3. 안정적인 섹션은 prompt caching를 사용할 수 있습니다.
+1. 새 기능의 텍스트가 들어갈 자리가 분명합니다.
+2. 비활성 기능의 텍스트는 건너뛸 수 있습니다.
+3. 안정적인 섹션은 prompt caching을 쓸 수 있습니다.
 
-조립이 없으면 프롬프트는 오래되거나, 부풀려지거나, 안전하게 변경하기 어려워집니다.
+조립이 없으면 prompt는 낡거나, 비대해지거나, 안전하게 바꾸기 어려워집니다.
 
 ---
 
 ## 메커니즘
 
-![메커니즘 다이어그램](assets/10-system-prompt-assembly.png)
+![Mechanism diagram](assets/10-system-prompt-assembly.png)
 
-프롬프트를 명명된 섹션으로 정의하세요. 일부 섹션은 고정되어 있습니다. 다른 섹션은 실시간 상태에서 텍스트를 계산하고 적용되지 않으면 `None`를 반환합니다.
+prompt를 이름이 붙은 섹션들로 정의합니다. 어떤 섹션은 정적입니다. 다른 섹션은 실시간 상태에서 텍스트를 계산하고, 해당하지 않으면 `None`을 반환합니다.
 
-조립은 간단합니다: 모든 섹션을 해결하고, `None`를 제거한 후 나머지를 결합하세요.
+조립은 단순합니다. 모든 섹션을 계산하고, `None`을 버리고, 나머지를 이어 붙입니다.
 
 ```python
 sections = [
@@ -37,12 +37,12 @@ sections = [
 prompt = [s for s in resolve(sections) if s is not None]
 ```
 
-두 가지 규칙이 관리 가능하게 합니다:
+두 가지 규칙이 이 구조를 다룰 만하게 유지합니다.
 
-1. 키워드 추측이 아니라 상태에 따라 섹션을 포함하세요.
-2. 변동성이 있는 콘텐츠는 안정적인 프롬프트 접두사와 떨어뜨리세요.
+1. 키워드 추측이 아니라 상태를 보고 섹션을 포함합니다.
+2. 자주 바뀌는 내용은 안정적인 prompt 앞부분에서 떼어 놓습니다.
 
-### 새로움: 섹션과 조립
+### 신규: 섹션과 assemble
 
 ```python
 @dataclass
@@ -58,7 +58,7 @@ def assemble(sections, state) -> str:                  # the prompt for this tur
     return "\n\n".join(p for p in parts if p is not None)
 ```
 
-섹션 목록은 상태 기반 포함을 소유합니다:
+섹션 목록이 상태 기반 포함 여부를 담당합니다.
 
 ```python
 DEMO_SECTIONS = [
@@ -69,29 +69,29 @@ DEMO_SECTIONS = [
 ]
 ```
 
-기억된 메모리는 이 프롬프트의 일부가 아닙니다. 섹션 9에서 `<system-reminder>` 메시지로 주입됩니다. 이는 프롬프트 접두사를 더 안정적으로 유지합니다.
+recall한 memory는 이 prompt의 일부가 아닙니다. section 9가 `<system-reminder>` 메시지로 주입합니다. 그래서 prompt 앞부분이 더 안정적으로 유지됩니다.
 
 ### Prompt caching
 
-대부분의 system prompt 섹션은 세션 동안 안정적입니다. 데모는 최상위 캐시 브레이크포인트를 설정합니다:
+대부분의 system prompt 섹션은 session 동안 안정적입니다. 데모는 최상위에 cache breakpoint를 하나 설정합니다.
 
 ```python
 client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
                        messages=messages, cache_control={"type": "ephemeral"})
 ```
 
-안정적인 콘텐츠는 변동 가능한 콘텐츠보다 먼저 나와야 합니다. 값이 초기에 변하면 캐시의 더 많은 부분이 무효화될 수 있습니다.
+안정적인 내용이 자주 바뀌는 내용보다 앞에 와야 합니다. 바뀌는 값이 앞쪽에 나오면 cache가 더 많이 무효화될 수 있습니다.
 
-가격 목록이 이 규칙을 엄격하게 만드는 이유입니다. 캐시는 정확한 토큰 접두사를 기준으로 설정됩니다.
-한 개의 토큰을 바꾸면 그 뒤의 모든 캐시된 토큰이 사라집니다. 캐시 읽기는 새로운 입력 토큰의 약 1/10 정도의 비용이 들고, 캐시 쓰기는 새 토큰보다 더 많은 비용이 듭니다.
-따라서 한 단어가 이동하면 캐시된 호출이 전체 가격 호출로 변할 수 있습니다.
-이 현상을 반복적으로 유발하는 두 가지는 프롬프트 상단 근처에 출력되는 타임스탬프나 토큰 수, 그리고 실행마다 순서가 바뀌는 도구 목록입니다.
+이 규칙을 엄격하게 만드는 것은 가격표입니다. cache는 정확한 token 앞부분을 키로 씁니다.
+token 하나만 바꿔도 그 뒤에 cache된 token은 전부 사라집니다. cache 읽기는 새 입력 token의 약 10분의 1 비용이고, cache 쓰기는 새 token보다 비쌉니다.
+그래서 단어 하나가 자리를 옮기면 cache된 호출이 정가 호출로 바뀔 수 있습니다.
+이 일을 반복해서 일으키는 원인은 두 가지입니다. prompt 위쪽에 찍히는 타임스탬프나 token 수, 그리고 실행마다 순서가 바뀌는 tool 목록입니다.
 
-Claude Code 또한 명시적인 동적 경계를 사용합니다. 이는 작은 동적 꼬리가 변경될 때 큰 정적 접두사를 보호합니다.
+Claude Code는 명시적인 동적 경계도 씁니다. 이 경계는 뒤쪽의 작은 동적 부분이 바뀔 때 앞쪽의 큰 정적 부분을 보호합니다.
 
 ### 통합 방식
 
-루프는 각 모델 호출 전에 프롬프트를 조립합니다:
+loop는 모델을 호출하기 전에 매번 prompt를 조립합니다.
 
 ```python
 for _ in range(max_steps):                             # src/loop.py
@@ -101,103 +101,103 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-- `prompt`는 섹션 목록을 닫는 호출 가능한 함수입니다.
-- 활성화된 도구와 세션 모드와 같은 실시간 상태를 읽습니다.
-- `prompt=None`를 전달하면 섹션-9 동작이 유지됩니다.
+- `prompt`는 섹션 목록을 클로저로 담은 호출 가능 객체입니다.
+- 활성화된 tool이나 session 모드 같은 실시간 상태를 읽습니다.
+- `prompt=None`을 넘기면 section 9의 동작이 그대로 유지됩니다.
 
-### 대비: 섹션 등록
+### 대비: 섹션 registry
 
-위의 목록은 한 파일에 고정되어 있습니다. 섹션을 추가하려면 해당 파일을 편집해야 하며, 파일 순서가 프롬프트 순서입니다.
+위의 목록은 파일 하나에 고정되어 있습니다. 섹션을 추가하려면 그 파일을 고쳐야 하고, 파일 순서가 곧 prompt 순서입니다.
 
-deepseek-harness는 대신 등록에서 조립합니다. 각 plugin은 이름이 지정된 섹션과 삽입 위치를 나타내는 번호를 등록합니다.
-숫자는 관례에 따라 대역별로 나뉩니다: harness 먼저 신원, 다음으로 배포 페르소나, 그 후 도구 안내.
-조립은 숫자 순으로 정렬되므로 plugin은 다른 등록 내역을 알지 못한 채 자신의 위치를 선택합니다.
+deepseek-harness는 대신 등록으로 조립합니다. 각 plugin이 이름이 붙은 섹션과 위치를 나타내는 숫자를 등록합니다.
+숫자는 관례에 따라 대역으로 나뉩니다. harness 정체성이 먼저, 배포 페르소나가 그다음, tool 안내가 그 뒤입니다.
+조립은 숫자로 정렬하므로, plugin은 다른 무엇이 등록되어 있는지 몰라도 자기 자리를 잡습니다.
 
-등록부에는 두 가지 규칙이 더 있습니다.
+registry에는 규칙이 두 가지 더 따라옵니다.
 
-- 하나의 에이전트는 이미 존재하는 이름 아래 자신의 섹션을 등록할 수 있습니다. 해당 에이전트는 자신의 버전을 보고, 다른 모든 사람은 공유 버전을 유지합니다.
-- 섹션 텍스트는 `{{variables}}`를 포함할 수 있으며, 렌더링은 엄격합니다. 알려지지 않은 이름은 생성된 프롬프트에 구멍을 렌더링하는 대신 오류를 발생시킵니다.
+- 한 agent는 이미 있는 이름으로 자기 섹션을 등록할 수 있습니다. 그 agent는 자기 버전을 보고, 나머지는 공용 버전을 그대로 씁니다.
+- 섹션 텍스트는 `{{variables}}`를 담을 수 있고, 렌더링은 엄격합니다. 이름을 모르면 출시된 prompt에 구멍을 렌더링하는 대신 예외를 냅니다.
 
-동적 사실은 이 프롬프트에 포함되지 않습니다. 그것들은 대화에 스냅샷으로 추가되며, 실제로 렌더링된 텍스트가 변경될 때만 추가되므로 접두사는 캐시 안정성을 유지합니다.
+동적인 사실은 이 prompt 밖에 둡니다. 스냅숏으로 대화에 덧붙이되 렌더링된 텍스트가 실제로 바뀐 경우에만 붙이므로, 앞부분은 cache가 안정적으로 유지됩니다.
 
-[`src/registry.py`](src/registry.py)는 이것의 축소판입니다. 이는 대비 시연이며 `assemble()`와 연결되어 있지 않으므로, 이후 섹션은 동일한 프롬프트 코드를 이어갑니다.
+[`src/registry.py`](src/registry.py)가 이를 축약한 것입니다. 대비용 데모이고 `assemble()`에 연결되어 있지 않으므로, 이후 섹션은 같은 prompt 코드를 그대로 이어 갑니다.
 
-### 추가 읽기
+### 더 읽을거리
 
-이 모든 것은 `src/`에 없습니다. 이것은 ai-agent-book에서 나온 것이며, 표에 있는 시스템들에 대한 확인은 되지 않았습니다.
+이 내용은 `src/`에 없습니다. ai-agent-book에서 온 것이고, 표에 있는 시스템에서 확인된 내용은 아닙니다.
 
-**경계 이전 조건은 접두사를 곱합니다.** 경계 전에 runtime 조건 하나를 두면 캐시는 결과별로 접두사 두 개를 보관해야 합니다.
-세 가지 조건은 여덟 개를 만듭니다. 열 가지 조건은 천 개 이상을 만들며, 각각 따로 가열되므로 거의 모든 세션이 처음에는 차가운 상태로 시작합니다.
-경계 이후 조건 섹션을 유지하면 다시 하나의 접두사가 있습니다.
+**경계 앞의 조건은 앞부분을 배로 늘립니다.** 런타임 조건 하나를 경계 앞에 두면 cache는 결과마다 하나씩, 앞부분을 두 벌 들고 있어야 합니다.
+조건이 셋이면 여덟 벌입니다. 열이면 천 벌이 넘고, 각각 따로 데워지므로 거의 모든 session이 차가운 상태로 시작합니다.
+조건부 섹션을 경계 뒤에 두면 앞부분은 다시 한 벌입니다.
 
-**작업 유형별로 예제 세트 하나를 선택하고 그대로 두세요.** 몇 가지 예제는 접두사에 들어가므로 위 규칙이 이를 포함합니다.
-각 요청에 대한 최고의 예제를 가져오는 것은 호출할 때마다 접두사를 다시 쓰고 캐시를 포기하게 합니다.
-고정된 세트는 요청에 조금 덜 적합하지만, 세션 전체 동안 접두사를 따뜻하게 유지합니다.
+**작업 유형마다 예제 집합을 하나 골라 그대로 둡니다.** few-shot 예제는 앞부분에 놓이므로 위의 규칙이 그대로 적용됩니다.
+요청마다 가장 좋은 예제를 검색해 오면 호출할 때마다 앞부분이 다시 쓰이고 cache를 포기하게 됩니다.
+고정된 집합은 요청에 조금 덜 들어맞지만, session 내내 앞부분을 따뜻하게 유지합니다.
 
-**상태 표시줄은 모델에게 현재 실행 위치를 알려줍니다.** 모델은 harness를 볼 수 없으므로, 일부 하니스는 몇 줄 끝부분에 실시간 상태를 기록합니다:
+**상태 표시줄은 실행이 지금 어디쯤인지 모델에게 알려 줍니다.** 모델은 harness를 볼 수 없으므로, 일부 harness는 실시간 상태를 context 끝에 몇 줄로 씁니다.
 
-- 실행된 도구 호출 수
-- 현재 할 일(TODO)
+- tool 호출이 몇 번 실행되었는지
+- 현재 TODO
 - 경과 시간
-- 작업 디렉토리
+- 작업 디렉터리
 
-그 줄들은 현재 상태를 유지해야 하며, 이를 하는 두 가지 방법이 있습니다. 어느 것도 무료가 아닙니다.
-각 턴마다 블록을 교체하면 상태의 유일한 사본이 존재하지만, 꼬리는 다시 쓰여지고 그 뒤의 캐시는 사라집니다.
-각 턴마다 새 블록을 추가하고 캐시는 유지되지만, 이전 블록들은 히스토리에 남아 있으며 모델은 이미 변경된 상태를 기반으로 동작할 수 있습니다.
-Claude Code는 9절의 `<system-reminder>` 메시지를 사용하여 추가됩니다.
-어느 쪽이든, 실제 상태를 읽는 코드로 블록을 작성해야 합니다. LLM 요약기는 호출을 추가하고 지연을 증가시키며 잘못될 수도 있습니다.
+이 줄들은 항상 최신이어야 하고, 방법은 두 가지입니다. 어느 쪽도 거저 되지 않습니다.
+매 turn마다 블록을 교체하면 상태의 참값 사본이 하나뿐이지만, 뒷부분이 다시 쓰이고 그 뒤의 cache는 사라집니다.
+매 turn마다 새 블록을 덧붙이면 cache는 유지되지만, 옛 블록이 기록에 남아 모델이 이미 바뀐 상태를 보고 행동할 수 있습니다.
+Claude Code는 section 9의 `<system-reminder>` 메시지를 써서 덧붙이는 쪽을 택합니다.
+어느 쪽이든 블록은 실제 상태를 읽는 코드로 써야 합니다. LLM 요약기를 쓰면 호출이 하나 늘고, 지연이 늘고, 틀릴 수도 있습니다.
 
-**외부 텍스트는 데이터이며, 절대 명령이 아닙니다.** 가져온 웹 페이지, 파일, 이슈 댓글, MCP 서버 응답은 모두 데이터입니다. 이들 중 어느 것도 사용자가 말하는 것이 아닙니다.
-마커 없이 해당 텍스트를 보내고 그 안에 지침처럼 보이는 문장이 있으면 system prompt와 동등한 조건에서 경쟁하게 됩니다. 그것이 바로 프롬프트 인젝션입니다.
-3절은 위협 모델과 실행 레이어 답변을 담당합니다: 권한과 sandbox가 탈취된 에이전트가 무엇을 할 수 있는지를 결정합니다.
-프롬프트 레이어는 지침과 데이터를 분리하여 더 일찍 행동할 수 있습니다:
+**외부 텍스트는 데이터이지 명령이 아닙니다.** 가져온 웹 페이지, 파일, 이슈 댓글, MCP 서버 응답은 모두 데이터입니다. 어느 것도 사용자가 말한 것이 아닙니다.
+그 텍스트를 아무 표시 없이 넣으면, 그 안의 지시처럼 보이는 문장이 system prompt와 대등한 자격으로 경쟁합니다. 그것이 prompt injection입니다.
+위협 모델과 실행 계층의 답은 section 3이 담당합니다. permission과 sandbox가 탈취당한 agent에게 무엇을 허용할지 정합니다.
+prompt 계층은 지시와 데이터를 갈라 놓는 방식으로 그보다 먼저 손을 쓸 수 있습니다.
 
-- 외부 콘텐츠를 출처를 명시한 태그 블록으로 감쌉니다. 프롬프트에서 태그된 콘텐츠는 읽어야 할 데이터일 뿐, 따라야 할 지침이 아님을 명시합니다.
-- 역할을 엄격히 유지합니다. 지침은 system prompt 블록에, 결과는 `tool_result` 블록에 넣고, 사람은 user 턴에서 발언합니다.
-- 충성 규칙을 한 번 명시합니다: 에이전트는 사용자와 운영자를 위해 일하며, 도구를 통해 들어오는 어떤 텍스트도 이를 변경할 수 없습니다. 책에서는 이를 주체 충성(principal loyalty)이라고 부릅니다.
+- 외부 내용은 출처를 밝히는 태그 블록으로 감쌉니다. 태그가 붙은 내용은 읽을 데이터일 뿐 따를 지시가 아니라고 prompt에 적습니다.
+- 역할을 엄격히 지킵니다. 지시는 system prompt에, 결과는 `tool_result` 블록에, 사람의 말은 user turn에 들어갑니다.
+- 충성 규칙을 한 번 명시합니다. agent는 사용자와 운영자를 위해 일하고, tool을 통해 들어온 어떤 텍스트도 그것을 바꿀 수 없습니다. 책은 이를 principal loyalty라고 부릅니다.
 
-**프롬프트 레이어는 경계가 아니다.** 모델은 여전히 규칙에서 벗어나도록 설득될 수 있으므로, 섹션 3의 검사는 어쨌든 실행된다.
-프롬프트 레이어는 확률을 낮춘다. 실행 레이어는 피해를 제한한다.
+**prompt 계층은 경계가 아닙니다.** 모델은 여전히 설득당해 규칙에서 벗어날 수 있고, 그래서 section 3의 검사가 어차피 실행됩니다.
+prompt 계층은 확률을 낮춥니다. 실행 계층은 피해를 한정합니다.
 
 ---
 
 ## 시스템별
 
-각 턴마다 프롬프트가 구성되는 방식.
+매 turn마다 prompt를 어떻게 구성하는지.
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **장점** | 오래된 지침 없음. 안내가 실제 도구와 일치함. | 구성에서 단 한번의 렌더. 무효화할 것이 없음. | 모든 프롬프트 사실에 하나의 소유자. 잘못된 참조는 명확하게 실패함. |
-| **단점** | 섹션 레지스트리, 캐시 규칙, 순서 규율 필요. | 실행 중에는 프롬프트를 변경할 수 없음. | 레지스트리, 범위, 순서 밴드가 많은 장치를 요구함. |
-| **이유** | 도구, 메모리, 모드는 세션마다 다릅니다. | 도구 세트가 실행 중간에 변경되지 않는다고 가정합니다. | Plugins 자체 사실을 소유하므로 프롬프트는 조립되며, 절대 편집되지 않습니다. |
-| **방법: 조립 지점** | 프롬프트 빌더, 섹션별로 하나의 문자열. | Jinja2 템플릿; 누락된 변수가 있으면 오류 발생. | 레지스트리와 각 범위가 조정할 수 있는 이벤트. |
-| **방법: 섹션** | 정적 및 동적 섹션; 프로젝트 컨텍스트는 메시지에 포함됩니다. | 두 개의 템플릿, 시스템과 인스턴스. | 숫자 범위로 명명된 섹션, 범위에 따라 가려짐. |
-| **방법: 빌드 시점** | 라이브 상태에서 턴별로, 동적 부분은 메모이징됨. | 실행 시작 시 한 번. | 단계별로 한 번. 사실이 변경되면 대신 스냅샷으로 추가. |
+| **장점** | 낡은 지시가 없음. 안내가 실제 활성 tool과 일치함. | 설정에서 한 번 렌더링. 무효화할 것이 없음. | prompt의 모든 사실에 소유자가 하나씩 있음. 잘못된 참조는 요란하게 실패함. |
+| **단점** | 섹션 registry, cache 규칙, 순서 규율이 필요함. | 실행 도중에는 prompt를 바꿀 수 없음. | registry, 범위, 순서 대역까지 장치가 많음. |
+| **이유** | tool, memory, 모드가 session마다 달라짐. | 실행 도중 tool 집합이 바뀌지 않는다고 가정함. | plugin이 자기 사실을 소유하므로, prompt는 조립될 뿐 편집되지 않음. |
+| **방법: 조립 지점** | prompt 빌더, 섹션마다 문자열 하나. | Jinja2 템플릿. 빠진 변수는 요란하게 실패함. | registry, 그리고 각 범위가 조정할 수 있는 이벤트. |
+| **방법: 섹션** | 정적 섹션과 동적 섹션. 프로젝트 context는 메시지에 실려 감. | 템플릿 두 개, system과 instance. | 숫자 대역에 놓인 이름 붙은 섹션. 범위가 가림. |
+| **방법: 조립 시점** | 실시간 상태로 turn마다. 동적 부분은 메모이제이션함. | 실행 시작 때 한 번. | 단계마다 한 번. 바뀌는 사실은 대신 스냅숏으로 덧붙음. |
 
 ---
 
 ## 실패 모드
 
-- **변동 텍스트는 캐시를 깨뜨립니다.** 변경되는 내용은 프롬프트 접두사 뒤나 끝에 배치하세요.
-- **오래된 섹션 캐시.** 세션 상태가 변경될 때 메모이제이션된 섹션을 지우세요.
-- **도구가 없는 프롬프트 이름.** 활성화된 도구 세트에서 도구 텍스트를 생성하세요.
-- **프롬프트에 혼합된 컨텍스트.** 프로젝트 파일, 날짜, git 상태를 자주 변경될 경우 컨텍스트 메시지에 포함하세요.
-- **프롬프트 오버라이드 충돌.** 우선순위를 정의할 때 하나의 해결자를 사용하세요.
-- **너무 많은 캐시 키.** 경계 전에 각 runtime 조건이 따로 워밍해야 하는 접두사를 두 배로 만듭니다. 조건부 섹션은 그 이후에 두세요.
-- **오래된 상태 블록.** 추가된 상태가 누적되어 모델이 오래된 사본으로 작동할 수 있습니다. 최신 블록을 표시하거나 교체하고 캐시 재구성을 수락하세요.
-- **외부 콘텐츠를 지침으로 읽음.** 도구 결과를 출처별로 태그하고 태그된 콘텐츠를 데이터라고 말합니다. 섹션 3의 권한 검사는 실제 경계를 유지합니다.
+- **자주 바뀌는 텍스트가 cache를 깨뜨림.** 바뀌는 내용은 뒤쪽에 두거나 prompt 앞부분 밖으로 뺍니다.
+- **낡은 섹션 cache.** session 상태가 바뀌면 메모이제이션된 섹션을 비웁니다.
+- **prompt가 없는 tool을 언급함.** tool 텍스트는 실제 활성 tool 집합에서 생성합니다.
+- **context가 prompt에 섞임.** 프로젝트 파일, 날짜, git 상태는 자주 바뀌므로 context 메시지에 둡니다.
+- **prompt 재정의 충돌.** 우선순위를 정하는 해석기를 하나만 씁니다.
+- **cache 키가 너무 많음.** 경계 앞의 런타임 조건 하나마다 따로 데워야 할 앞부분이 두 배가 됩니다. 조건부 섹션은 경계 뒤에 둡니다.
+- **낡은 상태 블록.** 덧붙인 상태가 쌓이면 모델이 옛 사본을 보고 행동할 수 있습니다. 최신 블록을 표시하거나, 교체하고 cache 재구축을 감수합니다.
+- **외부 내용을 지시로 읽음.** tool 결과에 출처 태그를 붙이고 태그가 붙은 내용은 데이터라고 명시합니다. 진짜 경계는 여전히 section 3의 permission 검사입니다.
 
 ---
 
-## 실행 가능
+## 실행 방법
 
-[`src/`](src/)는 09를 앞으로 가져가고 다음을 추가합니다:
+[`src/`](src/)는 09를 이어받고 다음을 추가합니다.
 
-- [`prompt.py`](src/prompt.py): `Section`, `static`, 그리고 `assemble`.
-- [`registry.py`](src/registry.py): deepseek-harness 대비: 주문 번호로 등록된 섹션, 범위 섀도잉, 그리고 엄격한 `{{variable}}` 렌더링.
-- [`loop.py`](src/loop.py): 매 턴마다 프롬프트를 다시 조립합니다.
-- [`demo.py`](src/demo.py): 최상위 `cache_control`를 추가합니다.
-- [`test.py`](src/test.py): 상태 기반 포함을 확인합니다; 레지스트리 확인은 순서 지정, 섀도잉 및 fail-loud 변수를 포함합니다.
+- [`prompt.py`](src/prompt.py): `Section`, `static`, `assemble`.
+- [`registry.py`](src/registry.py): deepseek-harness와의 대비. 순서 번호로 등록되는 섹션, 범위 가리기, 엄격한 `{{variable}}` 렌더링.
+- [`loop.py`](src/loop.py): 매 turn마다 prompt를 다시 조립합니다.
+- [`demo.py`](src/demo.py): 최상위 `cache_control`을 추가합니다.
+- [`test.py`](src/test.py): 상태 기반 포함 여부를 확인합니다. registry 검사는 순서, 가리기, 요란하게 실패하는 변수를 다룹니다.
 
 ```bash
 python sections/10-system-prompt/src/test.py         # offline checks, no key
@@ -208,16 +208,16 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 
 ## 출처
 
-- [Claude Code 소스](https://github.com/yasasbanukaofficial/claude-code): `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
-- [mini-swe-agent 소스](https://github.com/swe-agent/mini-swe-agent):
-  `config/mini.yaml`, `_render_template` 그리고 `get_template_vars` in `agents/default.py`, `models/utils/cache_control.py`.
-- [deepseek-harness 소스](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
+  `config/mini.yaml`, `agents/default.py`의 `_render_template`과 `get_template_vars`, `models/utils/cache_control.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness), `dsh-v0.1.0-rc.7` 기준:
   `packages/core/system-prompt/README.md`, `packages/core/system-prompt/src/index.ts`, `packages/core/agent-loop/src/runtime-context.ts`,
   `docs/subsystems/system-prompt.md`, `docs/agent-lifecycle.md`.
-- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): 캐시 중단점, TTL, 가격 책정 및 토큰 최소값.
-- [Claude Code prompt caching 문서](https://code.claude.com/docs/en/prompt-caching): 정적 접두사와 동적 꼬리 사이의 명시적 캐시 경계.
-- [ai-agent-book · 2장](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 이보걸; 중국어 원본이 정본입니다):
-  KV 캐시 경제학, 아키텍처 제약으로서의 캐시(경계 이전 조건이 캐시 키를 곱함), 소수 샷 접두사 안정성,
-  에이전트 상태 표시줄과 교체 대 추가 트레이드오프, 그리고 주체 충성도를 통한 컨텍스트 계층 주입 방어.
-  책의 상태 표시줄과 충성도 측정치는 저자의 자체 벤치마크이므로 수치는 단일 출처이며 여기서 반복되지 않습니다.
-- [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): 섹션 프레이밍.
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache breakpoint, TTL, 가격, token 최소치.
+- [Claude Code prompt caching docs](https://code.claude.com/docs/en/prompt-caching): 정적 앞부분과 동적 뒷부분 사이의 명시적 cache 경계.
+- [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰. 중국어 원문이 정본):
+  KV cache 경제학, 아키텍처 제약으로서의 cache(경계 앞의 조건이 cache 키를 배로 늘림), few-shot 앞부분 안정성,
+  agent 상태 표시줄과 교체 대 덧붙이기의 절충, principal loyalty를 포함한 context 계층의 injection 방어.
+  책의 상태 표시줄과 충성 관련 측정치는 저자 본인의 benchmark라서 출처가 하나뿐이므로 여기서는 옮기지 않습니다.
+- [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): 섹션 구성.

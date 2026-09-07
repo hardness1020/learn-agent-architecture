@@ -2,45 +2,45 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> 並列エージェントに個別の作業ディレクトリを与えます。
+> 並列に動く agent へ、それぞれ別の作業ディレクトリを与えます。
 
-単一の作業ディレクトリは共有可変状態です。 2 人のエージェントが同時に同じファイルに書き込む場合、一方が他方の作業を上書きする可能性があります。
+作業ディレクトリが 1 つしかない場合、それは共有された可変の状態です。2 つの agent が同じファイルへ同時に書き込むと、一方がもう一方の成果を上書きしてしまいます。
 
-タスク システムは、どのような作業が存在するかを決定します。 Subagents 作業をどのように分割するかを決定します。
-Worktree isolation は書き込みを分離します。各エージェントは独自のディレクトリに書き込むため、干渉しません。
+どんな作業が存在するかは task system が決めます。作業をどう分割するかは subagent が決めます。
+worktree isolation は書き込みを分離します。各 agent が自分のディレクトリの中で書き込むので、互いに干渉しません。
 
-各作業単位には独自のチェックアウトとブランチが与えられます。エージェントのファイルおよびシェル ツールは、そのチェックアウト内のパスを解決します。
+作業の単位ごとに、専用のチェックアウトとブランチを割り当てます。agent のファイル系ツールと shell 系ツールは、そのチェックアウトの中でパスを解決します。
 
-絶縁層は次のことを行う必要があります。
+isolation 層に必要な機能は次のとおりです。
 
-1. 作業単位ごとにプライベート チェックアウトを作成します。
-2. ツールをそのチェックアウトにバインドします。
-3. worktree ルートをエスケープする名前を拒否します。
-4. きれいな worktrees を取り外し、汚れたものはレビュー用に保管しておきます。
+1. 作業の単位ごとに専用のチェックアウトを作る。
+2. ツールをそのチェックアウトに結び付ける。
+3. worktree のルートから外へ出てしまう名前を拒否する。
+4. clean な worktree は削除し、dirty なものはレビュー用に残す。
 
-このレイヤーがないと、同じディレクトリを同時に編集するエージェントが互いのファイルを破損する可能性があります。
+この層がないと、同じディレクトリを同時に編集する agent どうしが、互いのファイルを壊してしまいます。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/15-worktree-isolation.png)
+![Mechanism diagram](assets/15-worktree-isolation.png)
 
-2 つの部分があります:
+構成要素は 2 つです。
 
-1. 作業単位ごとのプライベート git worktree。
-2. コンテキストごとの作業ディレクトリのバインディング。
+1. 作業の単位ごとに用意する専用の git worktree。
+2. context 単位の作業ディレクトリの束縛。
 
-バインディングのスコープはエージェント コンテキストに設定する必要があります。グローバル `chdir` は、同じプロセス内の他のエージェントに影響を与えます。
+この束縛は agent の context に限定しなければなりません。プロセス全体の `chdir` を使うと、同じプロセス内の他の agent にも影響します。
 
-- 各 worktree は、独自のブランチ上の同じリポジトリのチェックアウトです。
-- スラグはパスになるため、パスが結合する前に検証してください。
-- ツールは、グローバル プロセス cwd からではなく、コンテキストから `get_cwd()` を読み取ります。
-- 分解では、クリーンな worktrees のみが削除されます。汚い worktrees レビュー用に滞在します。
+- 各 worktree は同じリポジトリを、それぞれ別のブランチでチェックアウトしたものです。
+- slug はそのままパスになるので、パスを連結する前に検証します。
+- ツールはプロセス全体の cwd ではなく、context から `get_cwd()` を読みます。
+- 後片付けでは clean な worktree だけを削除します。dirty な worktree はレビュー用に残ります。
 
-### 新機能: worktree と cwd バインディング
+### 新規: worktree と cwd の束縛
 
-`worktree.py` はスラッグを検証し、worktree を作成し、コンテキスト変数を介して cwd をバインドします。
+`worktree.py` は slug を検証し、worktree を作り、context 変数を通じて cwd を束縛します。
 
 ```python
 _cwd = contextvars.ContextVar("cwd", default=None)   # per-context cwd
@@ -62,15 +62,15 @@ def remove(repo_root, slug, force=False):
     return True
 ```
 
-- `cwd_override` は、現在のコンテキストにのみ影響します。
-- ツールは `get_cwd()` をサブプロセスとファイル操作に渡します。
+- `cwd_override` は現在の context にだけ効きます。
+- ツールは `get_cwd()` をサブプロセスやファイル操作へ渡します。
 - `create` は `git worktree add -B worktree-<slug>` を実行します。
-- `validate_slug` は、トラバーサル文字と許可されていない文字を拒否します。
-- `remove` は、強制されない限り、ダーティ worktree の削除を拒否します。
+- `validate_slug` はディレクトリトラバーサルと許可されない文字を拒否します。
+- `remove` は強制指定がない限り、dirty な worktree の削除を拒否します。
 
-### 統合方法
+### 組み込み方
 
-アイソレーションはループの外側からターンをラップします。
+isolation は loop の外側から turn を包みます。
 
 ```python
 wt = worktree.create(repo, "agent-1")                 # src/demo.py
@@ -79,46 +79,46 @@ with worktree.cwd_override(wt):
 worktree.remove(repo, "agent-1")                       # clean -> remove, dirty -> keep
 ```
 
-ループと subagent パスには特別なロジックは必要ありません。ツールによって認識される作業ディレクトリのみが変更されます。
+loop と subagent の経路に特別な処理は要りません。変わるのは、ツールから見える作業ディレクトリだけです。
 
-このモデルを選択可能にするには、`isolation` オプションを `Agent` ツール スキーマに追加し、`spawn` に分岐します。
+これをモデル側から選べるようにするには、`Agent` tool のスキーマに `isolation` オプションを追加し、`spawn` で分岐させます。
 
 ---
 
-## システムごと
+## システム別
 
-各システムが並列作業をどのように分離し、クリーンアップするか。
+各システムが並列作業をどう分離し、どう後片付けするかを示します。
 
 | | Claude Code |
 | --- | --- |
-| **長所** |実際のファイルシステムの分離とクリーンな差分。ダーティ worktrees はレビューのために残るため、作業が黙って失われることはありません。 |
-| **短所** | Worktrees コストのディスク、セットアップ時間、およびその後のマージ ステップ。 |
-| **理由** |複数のエージェントが 1 つの共有ディレクトリに安全に書き込むことができないため、各作業単位が独自のチェックアウトに書き込みます。 |
-| **方法: 隔離ユニット** | Git worktree タスクまたはセッションごとに、それぞれ独自のブランチ上にあります。モデルは、subagent を生成するときにこれを要求できます。 |
-| **方法: バインディング** | subagents のスコープ付き cwd なので、同時エージェントは相互に影響しません。セッションモードはプロセス cwd を変更します。タスク レコードはバインディングを保存しません。 |
-| **方法: クリーンアップ** |クリーンな worktrees を削除します。ユーザーが明示的に変更を破棄しない限り、ダーティなものはそのままにしておきます。定期的なスイープにより、古い一時的な worktrees が削除されます。 |
+| **利点** | ファイルシステムのレベルで本当に分離でき、差分もきれいです。dirty な worktree はレビュー用に残るので、成果が黙って失われません。 |
+| **欠点** | worktree はディスク、セットアップ時間、そして後段のマージ作業というコストを伴います。 |
+| **理由** | 複数の agent が 1 つの共有ディレクトリへ安全に書き込むことはできないので、作業の単位ごとに専用のチェックアウトの中で書き込みます。 |
+| **方法: 分離の単位** | task または session ごとに 1 つの git worktree を作り、それぞれ別のブランチに置きます。モデルは subagent を spawn するときに worktree を要求できます。 |
+| **方法: 束縛** | subagent には限定された cwd を与えるので、同時に動く agent どうしが影響し合いません。session モードではプロセスの cwd 自体を変えます。task のレコードに束縛を保存することはありません。 |
+| **方法: 後片付け** | clean な worktree は削除します。dirty なものは、ユーザーが明示的に変更を破棄しない限り残します。定期的な掃除で、古い一時 worktree を削除します。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **スラッグ内のパス トラバーサル。** パス結合または git コマンドの前に検証します。
-- **削除時のサイレント損失** ユーザーが明示的に変更を破棄しない限り、worktrees をダーティのままにしておきます。
-- **エージェント間での cwd リーク。** 同時 subagents にはコンテキスト ローカル cwd を使用します。
-- **古い worktree ビルドアップ。** 既知の一時的な worktrees のみをスイープします。
-- **フォーク後の古い読み取り。** フォークされた子に、worktree 内のファイルを再読み取りするように指示します。
+- **slug 経由のパストラバーサル。** パスの連結や git コマンドの前に検証。
+- **削除による無言の消失。** ユーザーが明示的に変更を破棄しない限り、dirty な worktree は保持。
+- **agent 間での cwd の漏れ。** 同時に動く subagent には context ローカルな cwd を使用。
+- **古い worktree の滞留。** 一時 worktree として把握しているものだけを掃除。
+- **fork 後の古い読み取り。** fork した child agent には、worktree の中のファイルを読み直すよう指示。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) は 14 を繰り上げて次を追加します。
+[`src/`](src/) は 14 を引き継いだうえで、次を追加します。
 
-- [`worktree.py`](src/worktree.py): スラグ検証、worktree 作成、コンテキスト ローカル CWD、および安全な削除。
-- [`test.py`](src/test.py): 別々の worktrees とクリーン/ダーティ除去ゲートに書き込む 2 つのエージェントをチェックします。
-- [`demo.py`](src/demo.py): worktree 内でライブ ターンを実行します。
+- [`worktree.py`](src/worktree.py): slug の検証、worktree の作成、context ローカルな cwd、安全な削除。
+- [`test.py`](src/test.py): 2 つの agent が別々の worktree で書き込むこと、clean と dirty で削除が分かれることを確認します。
+- [`demo.py`](src/demo.py): worktree の中で実際の turn を 1 回実行します。
 
-ループと subagent パスは変更されません。分離は cwd をバインドすることでターンをラップします。
+loop と subagent の経路は変わりません。isolation は cwd を束縛することで turn を包みます。
 
 ```bash
 python sections/15-worktree-isolation/src/test.py         # offline checks, real git, no key
@@ -127,8 +127,8 @@ uv run python sections/15-worktree-isolation/src/demo.py  # live demo, needs a k
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code):
-  `tools/EnterWorktreeTool/`、`tools/ExitWorktreeTool/`、`utils/worktree.ts`、`utils/cwd.ts`、`tools/AgentTool/AgentTool.tsx`。
-- [learn-claude-code · s18_worktree_isolation](https://github.com/shareAI-lab/learn-claude-code): セクション フレーム。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/EnterWorktreeTool/`, `tools/ExitWorktreeTool/`, `utils/worktree.ts`, `utils/cwd.ts`, `tools/AgentTool/AgentTool.tsx`.
+- [learn-claude-code · s18_worktree_isolation](https://github.com/shareAI-lab/learn-claude-code): section framing.

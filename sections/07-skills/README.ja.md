@@ -2,46 +2,46 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md)
 
-> skill は、専門知識、手順、およびスクリプトとファイルの自己完結型バンドルであり、タスクで必要な場合にのみロードされます。
+> skill は専門知識を自己完結の形にまとめた束です。手順に加えてスクリプトやファイルを含み、タスクが必要としたときだけ読み込まれます。
 
-skill は、総合エージェントを 1 つの仕事のスペシャリストに変えます。
-これには、従うべき手順に加えて、実行するスクリプトと参照する参照ファイルなどのワークフローがパッケージ化されています。
-エージェントは、タスクで呼び出された場合にのみ skill をロードするため、1 つのエージェントは、事前にすべてをロードしなくても、多くの特殊な機能にアクセスできます。
+skill は、汎用の agent を 1 つの仕事の専門家に変えます。
+まとめるのはワークフローです。従うべき手順に加えて、実行するスクリプトと参照する資料ファイルが入ります。
+agent は必要なときだけ skill を読み込むので、1 つの agent が多くの専門能力に手を伸ばせます。最初から全部を読み込む必要はありません。
 
-各 skill は、`SKILL.md` ファイルを含むフォルダーです。前付では、skill の名前と説明を記載しています。
-本体には命令が保持されており、フォルダーには、skill が使用する場合にのみ読み込まれる追加のスクリプトと参照ファイルをバンドルできます。
+skill は `SKILL.md` を 1 つ置いたフォルダです。frontmatter がその skill の名前と説明を持ちます。
+本文には手順が入り、フォルダには追加のスクリプトや資料ファイルを同梱できます。これらは skill がそれを使うときだけ読み込まれます。
 
-エージェントは skills が存在することを知っている必要がありますが、毎ターンすべての skill ボディに対して支払う必要はありません。
+agent は skill が存在することを知る必要があります。ただし、毎 turn すべての skill の本文の分を支払うべきではありません。
 
-skill システムは次のことを行う必要があります。
+skill のシステムに必要なことは次の 4 つです。
 
-1. skills を安く出品します。
-2. skill が選択されている場合にのみ、完全な命令をロードします。
-3. skills が追加のファイルを自動的にロードせずに指すようにします。
-4. 組み込み、ユーザー、プロジェクト、plugin、または MCP ソースから skills を検出します。
+1. 使える skill を安価に一覧すること。
+2. 選ばれた skill の手順だけを、そのとき読み込むこと。
+3. skill から追加ファイルを指し示せること。ただし自動では読み込まないこと。
+4. 組み込み、ユーザー、プロジェクト、plugin、MCP という各ソースから skill を見つけること。
 
-このレイヤーがないと、プロンプトが大きすぎるか、エージェントがその拡張子を見つけることができません。
+このレイヤがないと、prompt が大きくなりすぎるか、agent が自分の拡張を見つけられなくなります。
 
 ---
 
-## メカニズム
+## 仕組み
 
-![機構図](assets/07-skills.png)
+![Mechanism diagram](assets/07-skills.png)
 
-Skills は progressive disclosure を使用します。モデルは、さらにロードするかどうかを決定するのに十分な情報のみを参照します。
+skill は段階的な開示を使います。モデルには、これ以上読み込むかどうかを判断できるだけの情報しか見せません。
 
-1. **メタデータ** フロントマターの `name` および `description`、および skill のパス。この安いカタログは毎ターン system prompt に乗っています。
-2. **説明書** `SKILL.md` 本体。モデルは、タスクが skill を必要とする場合にのみファイルを読み取ります。
-3. **リソース。** skill フォルダー内の追加ファイル。モデルは、命令がそれらを指す場合、同じファイル ツールを使用してそれらを読み取ります。
+1. **メタデータ。** frontmatter の `name` と `description`、それに skill のパスです。この安価なカタログは毎 turn の system prompt に載ります。
+2. **手順。** `SKILL.md` の本文です。モデルは、タスクがその skill を必要としたときだけこのファイルを読みます。
+3. **リソース。** skill フォルダの追加ファイルです。手順がそれらを指し示したとき、モデルは同じファイル用の tool で読みます。
 
-スキル固有のツールは必要ありません。カタログで各 skill とそのパスに名前が付けられたら、
-エージェントは、通常の読み取りツールでファイルを読み取ることによって、skill をロードします。 L2 と L3 はどちらも単なるファイル読み取りです。
+skill 専用の tool は要りません。カタログが各 skill の名前とパスを示していれば、
+agent は通常の Read tool でそのファイルを読むだけで skill を読み込めます。L2 も L3 も、どちらもただのファイル読み込みです。
 
-説明はほとんどの作業を行います。これはルーティング条件であり、概要ではありません。
-モデルが決定する前に確認するのは、その 1 行だけです。したがって、skill をいつ使用するべきか、また、いつ使用しないかを決めてください。
-反例を 1 つ追加します。トピックに名前を付けるだけの行は、モデルに推測を与えます。
+仕事の大半を担うのは description です。これは要約ではなく、振り分けの条件です。
+モデルが判断する前に見えるのは、その 1 行だけです。だから、どんなときに使うのか、どんなときに使わないのかを書きます。
+反例を 1 つ添えます。話題を挙げるだけの行では、モデルは当て推量をします。
 
-### 新機能: skills をスキャンし、プロンプトにリストします。
+### 本節の追加: skill を走査して prompt に一覧する
 
 ```python
 @dataclass
@@ -62,16 +62,16 @@ def catalog_prompt(skills, base_dir) -> str:   # L1: the block added to the syst
     return "Available skills (read a skill's path with the Read tool):\n" + "\n".join(lines)
 ```
 
-- `load_skills` は、`SKILL.md` ファイルをスキャンし、カタログの前部分のみを保持します。
-- `catalog_prompt` は、そのカタログを system prompt にレンダリングし、skill ごとに 1 行、読み取りパスを指定します。
-- 本体とリソースはプレーンファイルです。通常の読み取りツールはオンデマンドでそれらをロードするため、スキル固有のツールはありません。
-- 読み取りツールのスコープは skills ディレクトリであるため、skill 名がファイル システムにエスケープされることはありません。
+- `load_skills` は `SKILL.md` を走査し、カタログ用に frontmatter だけを保持します。
+- `catalog_prompt` はそのカタログを system prompt に展開します。skill ごとに 1 行、読むべきパス付きです。
+- 本文とリソースはただのファイルです。通常の Read tool が必要に応じて読み込むので、skill 専用の tool はありません。
+- Read tool は skills ディレクトリに範囲を限定しているので、skill 名がファイルシステムへ抜け出すことはありません。
 
-### 新機能: ストアは進化します
+### 本節の追加: store が進化する
 
-読み込みは skill システムの半分です。店舗も成長と衰退を繰り返します（エルメスではこれをskillの進化と呼んでいます）。
+読み込みは skill システムの半分にすぎません。store も成長し、そして衰えます (Hermes はこれを skill evolution と呼びます)。
 
-成長とは書くことだ。エージェントは、完了したワークフローを新しい skill に抽出するため、次回の実行では命令を再検出するのではなく、命令をロードします。
+成長は書き込みです。agent は完了したワークフローを蒸留して新しい skill にします。次の実行は、手順を発見し直す代わりに読み込むだけで済みます。
 
 ```python
 def write_skill(skills_dir, name, description, body) -> Path:   # src/skills.py
@@ -84,11 +84,11 @@ def write_skill(skills_dir, name, description, body) -> Path:   # src/skills.py
     return target
 ```
 
-- `WriteSkill` は、この機能に関するモデル対応ツールです。 skill の書き込みは副作用であるため、ルールで事前承認されていない限り、セクション 3 のゲートが要求します。
-- ・書き込まれたファイルは通常の`SKILL.md`です。特別なマークは何もありません。次の `load_skills` スキャンでは、手書きの skill のようにカタログ化されます。
-- 名前は、`read_tool` がパスをチェックするのと同じ方法で解決およびチェックされるため、ストアはどちらの方向からもエスケープできません。
+- `WriteSkill` は、この関数をモデル側に見せる tool です。skill を書くのは副作用なので、ルールで事前承認されていない限り、セクション 3 のゲートが確認を求めます。
+- 書き出されるのは通常の `SKILL.md` です。特別な印は付きません。次の `load_skills` の走査が、手書きの skill と同じようにカタログに載せます。
+- 名前は `read_tool` がパスを検査するのと同じ手順で解決し検査します。したがって store はどちらの方向からも抜け出せません。
 
-減衰は測定から始まります。 skill のロードは使用シグナルであるため、`read_tool` は読み取りの副作用としてそれを記録します。
+衰えは測定から始まります。skill を読み込むことが使用のシグナルなので、`read_tool` が読み込みの副作用としてそれを記録します。
 
 ```python
 if target.name == "SKILL.md":                # inside read_tool's read()
@@ -111,114 +111,114 @@ def stale_skills(skills_dir, skills, now=None, stale_after=STALE_AFTER) -> list[
             if now - usage.get(s.name, {}).get("last_used_at", 0) >= stale_after]
 ```
 
-- skill のフォルダー名のレコード キー。モデルが読み取ったパスから取得されます。リソースの読み取り (L3) ではバンプされず、`SKILL.md` ボディ (L2) のみがバンプされます。
-- レコードのない skill には `last_used_at` 0 があるため、一度も使用されていない skills も古いものとしてカウントされます。
-- `stale_skills` はアクションではなくレポートです。それをどうするかを決めるのはキュレーターの仕事です。 Hermes は、同じシグナル (アーカイブ、統合、ピン) でバックグラウンド キュレーター エージェントを実行します。
-- データ フローは実行間のループです。バンプ `.usage.json` を読み取り、キュレーターがそれを読み取り、生き残ったものがカタログに反映され、`WriteSkill` が新しいエントリをフィードします。
+- 記録の鍵は skill のフォルダ名で、モデルが読んだパスから取ります。リソースの読み込み (L3) では増えず、`SKILL.md` の本文 (L2) だけが増やします。
+- 記録のない skill は `last_used_at` が 0 なので、一度も使われていない skill も古いものとして数えられます。
+- `stale_skills` は報告であって、動作ではありません。それをどう扱うかを決めるのは管理役の仕事です。Hermes は同じシグナルでバックグラウンドの管理役 agent を走らせます (アーカイブ、統合、固定)。
+- データの流れは実行をまたぐ loop になります。読み込みが `.usage.json` を増やし、管理役がそれを読み、カタログが生き残ったものを映し、`WriteSkill` が新しい項目を流し込みます。
 
-### 統合方法
+### 既存の構成への組み込み
 
-ループは変わりません。 skill を読み取ると、`messages[]` に入る tool result が返されます。
+loop は変わりません。skill を読むと tool result が返り、それが `messages[]` に入ります。
 
-カタログは system prompt に属します。本文は、モデルがファイルを読み取った後にのみ会話に入ります。リソース ファイルは、後で必要な場合にのみ読み取られます。
+カタログは system prompt に置きます。本文が会話に入るのは、モデルがファイルを読んだ後だけです。リソースのファイルは、必要になったときだけ後から読まれます。
 
-ロードされた skill テキストは `messages[]` に存在するため、コンテキストがいっぱいになったときに他のメッセージと同様に圧縮できます (セクション 8)。
-skill 本体を短くし、大きな参照用のファイルをポイントします。
+読み込まれた skill のテキストは `messages[]` にあるので、context が埋まれば他の message と同じように compaction の対象になります (セクション 8)。
+skill の本文は短く保ち、大きな参照資料はファイルを指し示します。
 
 ### さらに読む
 
-これは `src/` にはありません。これは ai-agent-book およびベンダーのドキュメントからのものであり、表内のシステムについては確認されていません。
+ここに書くことは `src/` にはありません。ai-agent-book とベンダーのドキュメントに基づくもので、表にあるシステムで確認が取れているわけではありません。
 
-**カタログの価格** Progressive disclosure は、大規模な skill ストアのコストを削減します。無料になるわけではありません。
-カタログはプレフィックス内に存在するため、プレフィル時に 1 回読み取られ、その後はターンごとに再送信されます。
-最初のターンの後、そのプレフィックスはキャッシュされるため、再送信のコストは低くなります。
-ロードされたボディはコストが高くなりますが、何かがボディを圧縮するまでウィンドウ内に留まります。
-したがって、注目すべき数値は、本体が読み取られる頻度ではなく、カタログに含まれる skills の数です。
+**カタログの費用。** 段階的な開示は、大きな skill の store の費用を下げます。ただの 0 にするわけではありません。
+カタログは prefix に置かれるので、prefill で一度読まれ、その後は毎 turn 送り直されます。
+最初の turn の後はその prefix がキャッシュされるので、送り直しは安く済みます。
+読み込んだ本文はもっと費用がかかり、何かが compaction するまで window に残ります。
+だから見るべき数字は、本文が読まれる頻度ではなく、カタログが載せている skill の数です。
 
-**カタログが存在する場所。** リストは system prompt に配置できます。これは、`src/` が行うことです。
-1 つのアクティベーション ツールの説明内に含めることもできます。オープンスタンダードでは両方が許可されています。
-トレードオフは、トークンがどこに着地するかです。 system prompt では、これらはすべてのセッションのプレフィックスの一部です。
-ツールの説明では、プレフィックスは小さいままであり、代わりにモデルはそのツールを通じてリストに到達します。
+**カタログの置き場所。** 一覧は system prompt に置けます。`src/` はそうしています。
+起動用の tool 1 つの description の中に置くこともできます。オープンな標準はどちらも認めています。
+違いは token がどこに落ちるかです。system prompt に置けば、すべての session の prefix の一部になります。
+tool の description に置けば prefix は小さいままで、モデルはその tool を通じて一覧に届きます。
 
-**ツールの読み込みの遅延。** ツールは同じ理由で同じパターンを使用できます。スキーマが大きく、ほとんどのターンではスキーマが必要ありません。
-プレフィックスには、ツール名と 1 行の説明のみが保持されます。モデルは、必要な場合に完全なスキーマを要求します。
-このスキーマはコンテキストの最後に追加されるため、キャッシュされたプレフィックスは変更されず、再計算する必要はありません。
-Skills は、このリポジトリが progressive disclosure と最初に出会った場所でした。この本では、同じパターンがツール層に移行していると報告しています (セクション 2)。
+**tool の遅延読み込み。** tool も同じやり方を使えます。理由も同じで、スキーマは大きく、ほとんどの turn では要らないからです。
+prefix には tool の名前と 1 行の説明だけを置きます。モデルは必要になったときに完全なスキーマを求めます。
+そのスキーマは context の末尾に追加されるので、キャッシュ済みの prefix には触れず、その前にあるものを再計算する必要もありません。
+このリポジトリが段階的な開示に最初に出会ったのは skill でした。同じやり方が tool のレイヤにも移りつつあると本は報告しています (セクション 2)。
 
-**skill を記述する場合。** 実行によって長いワークフローが初めて正しく終了したとします。それは skill になるべきでしょうか?
-ここのデモは「はい」と言っています。ワークフローが終了し、エージェントが `WriteSkill` を呼び出し、次のスキャンでカタログに登録されます。
-これはループを示す最小のルールであり、実行可能なコードが行うことです。
+**skill をいつ書くか。** ある実行が、長いワークフローを初めて正しく完了したとします。それを skill にすべきでしょうか。
+ここでのデモは「する」と答えます。ワークフローが終わると agent が `WriteSkill` を呼び、次の走査がそれをカタログに載せます。
+これは loop を見せる最小のルールであり、実行できるコードがやっていることです。
 
-**この本のハードルは高いです。** この本ではノーと言っています。1 回の実行では証拠が少なすぎるからです。
-skill が正式な機能になる前に、次の 4 つのことが求められます。
+**本はもっと高い基準を示す。** 本は「しない」と答えます。1 回の実行では証拠が足りないからです。
+skill が正式な能力になる前に、4 つのことを求めます。
 
-- 失敗しなかった少なくとも 2 回の実行で同じパターン。
-- skill を提案した実行から得られたものではない小切手。 Voyager は次のように動作します。環境がそれを確認した後、skill がライブラリに入ります。
-- まずはお店探し。近いものがすでに存在する場合は、重複を追加する代わりにパッチを適用します。
-- うまくいったパスだけでなく、ランがぶつかった落とし穴も体に残しました。
+- 失敗しなかった実行が少なくとも 2 回あり、そこに同じパターンが出ていること。
+- その skill を提案した実行の外から来る検査。Voyager はこのやり方です。環境が確認してから skill がライブラリに入ります。
+- まず store を検索すること。近いものがすでにあるなら、重複を足さずにそれを直します。
+- その実行がはまった落とし穴を本文に残すこと。うまくいった道筋だけではありません。
 
-**どちらのルールを選択するか。** 答えが異なるため、両方とも擁護可能です。
-最初の成功はメカニズムを教え、デモを短くします。サポートしきい値は、数百のストアが一度使用されたノートでいっぱいになるのを防ぐものです。
-候補ステップはそれらの間にあります。抽出されたワークフローは、カタログ エントリとしてではなく、候補として表示されます。
-昇進前に起草、テスト、評価、改訂が行われます。 Anthropic の Skill Creator がそのループを実行します。
-このセクションのコードでは、キュレーターがプロモートするまで `load_skills` がスキップするステージング フォルダーになります。
+**どちらのルールを取るか。** どちらにも根拠があります。答えている問いが違うからです。
+初回の成功は仕組みを教え、デモを短く保ちます。回数のしきい値は、数百の store が一度きりのメモで埋まるのを止めます。
+その間に候補という段階を挟めます。蒸留したワークフローは、カタログの項目ではなく候補として着地します。
+そこから草案、テスト、評価、修正を経て昇格します。Anthropic の Skill Creator はこの loop を回します。
+このセクションのコードで言えば、管理役が昇格させるまで `load_skills` が読み飛ばす待機用フォルダにあたります。
 
-**統合はオフラインで実行されます。** キュレーターは、ライブ パスではなく、スケジュールされたパスです。この本ではこれを睡眠時間学習と呼び、次の 5 つのステップを示しています。
+**統合はオフラインで走る。** 管理役は定期実行の処理であって、実行中のものではありません。本はこれを sleep-time learning と呼び、5 つの手順を挙げます。
 
-1. **トリガー** スケジュール、アイドル状態のウィンドウ、またはサイズ制限を超えたストア。
-2. **方向性** 最初にストアのスナップショットを作成し、後のすべてのステップをロールバックできるようにします。
-3. **収集してマージします。** 使用記録と最近の実行を読み取ります。ほぼ重複したものを 1 つの skill に折りたたみます。候補者を引き込みます。
-4. **検証して承認します。** マージされたボディを、それを生成した実行と比較して確認します。失敗したものはそのまま残ります。
-5. **プルーニングとインデックス付け。** 古い skills を一定のルールに従ってアーカイブし、カタログを再構築します。
+1. **起動。** schedule、待機時間、またはサイズの上限を超えた store。
+2. **把握。** まず store のスナップショットを取り、後のどの手順も巻き戻せるようにします。
+3. **収集と統合。** 使用の記録と最近の実行を読みます。ほぼ重複するものを 1 つの skill にまとめます。候補を取り込みます。
+4. **検証と承認。** 統合した本文を、それを生んだ実行と突き合わせて検査します。通らなかったものは入れません。
+5. **整理と索引付け。** 決められたルールで古い skill をアーカイブし、カタログを作り直します。
 
-**オフラインが重要な理由** キュレーターをオフラインで実行すること自体が安全境界線です。オンライン ループが実行され、記録されます。
-実行中にストアを編集することはありません。つまり、一度の幸運な走行がそれ自体を宣伝することはできません。
-また、エージェントが外部から読み取ったテキストは、ターン間の永続的な指示になることはできません。
+**なぜオフラインが重要か。** 管理役をオフラインで走らせること自体が安全の境界になります。オンラインの loop は実行し、記録します。
+実行の途中で store を編集することはありません。だから、たまたまうまくいった 1 回の実行が自分を昇格させることはできず、
+agent が外から読んだテキストが turn の間に恒久的な指示になることもありません。
 
 ---
 
-## システムごと
+## システム別
 
-各エージェントが skills をどのように記述し、トリガーし、検出するか。
+各 agent が skill をどう説明し、どう起動し、どう見つけるか。
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **長所** |予算に合わせて。 skill はツールをフォークおよびスコープできます。 |キュレーターは新しい skills をマージし、古いものはアーカイブします。 |カタログは履歴を反映し、変更されると更新されます。 |
-| **短所** |曖昧な説明は skills を隠します。 |自動変更にはピンと段階的な承認が必要です。 |カタログを書き換えると、履歴にメッセージが追加されます。 |
-| **理由** | Skills フォーク ツールとスコープ ツールがあるため、ファイルの読み取りだけでは十分ではありません。 |読み込みは仕事の半分です。店は成長し衰退しなければなりません。 | Skills はセッションの実行中に変更されます。 |
-| **方法: skill 形式** | `SKILL.md` フォルダー;フロントマターによりツールが制限される可能性があります。 |同じ形状をカテゴリフォルダーに分類します。 |バンドルまたはフラット ファイル。 Frontmatter は、呼び出し可能なユーザーを設定します。 |
-| **方法: トリガーをロード** | `Skill` 呼び出しは本体を挿入します。ファイルの一致でも起動されます。 | `skill_view` は本体を返し、使用カウントをバンピングします。 |ツールは要求に応じて本文を再読み取りします。 |
-| **方法: 発見** |組み込み、ユーザー、プロジェクト、plugin、MCP ソース。 |バンドル、オプション、ユーザー、plugin、およびハブ ソース。 |プロバイダーは、階層化されたスコープとランク付けされたルートをマージします。 |
+| **利点** | 予算に収まる。skill は fork でき、tool を絞れる。 | 管理役が新しい skill を統合し、古いものをアーカイブする。 | カタログが履歴に載り、変わったときに更新される。 |
+| **欠点** | 曖昧な description は skill を埋もれさせる。 | 自動の変更には固定と段階的な承認が要る。 | カタログの書き直しが履歴に message を増やす。 |
+| **理由** | skill は fork して tool を絞るので、ファイル読み込みだけでは足りない。 | 読み込みは仕事の半分。store は成長も衰えもしなければならない。 | session の実行中にも skill は変わる。 |
+| **方法: skill の形式** | `SKILL.md` のフォルダ。frontmatter で tool を制限できる。 | 同じ形で、カテゴリ別のフォルダに整理される。 | 束またはフラットなファイル。frontmatter が誰から呼べるかを決める。 |
+| **方法: 読み込みの起動** | `Skill` の呼び出しが本文を注入。ファイルの一致でも発火する。 | `skill_view` が本文を返し、使用回数を増やす。 | 要求に応じて tool が本文を読み直す。 |
+| **方法: 発見** | 組み込み、ユーザー、プロジェクト、plugin、MCP のソース。 | 同梱、任意、ユーザー、plugin、ハブのソース。 | 提供側が階層化されたスコープと順位付けされたルートをまたいで統合する。 |
 
 ---
 
-## 障害モード
+## 失敗モード
 
-- **Skill は起動しません。** 説明が曖昧すぎます。トリガー形式の説明を書きます。
-- **カタログが大きすぎます。** skills が多すぎると、プロンプトが混雑する可能性があります。 skills に焦点を当てたままにして、ローダーをトリミングさせます。
-- **圧縮後にボディが失われます。** skill ファイルを再読み込みするか、ボディを短くしてください。
-- **パス トラバーサル。** カタログはモデルにパスを渡します。読み取りツールのスコープを skills ディレクトリに設定し、`../` がエスケープできないようにします。
-- **フォークされた skill はライブ コンテキストを失います。** フォークされた skills は自己完結型の作業にのみ使用してください。
-- **サプライ チェーンからの有害な skill。** インストールされたサードパーティの skill は外部コンテンツですが、命令としてロードされます。
-  カタログがすでにそれを保証しているため、毒された Web ページよりもリーチが広がります。
-  インストールする前に、本体とバンドルされているスクリプトを読んでください。バージョンを固定します。アップデート時に再度見直します。
-- **挿入されたテキストは永続的になります。** `messages[]` のプロンプト挿入はセッションとともに終了します。 `SKILL.md` に書き込まれた同じテキストが、以降の実行ごとにロードされます。
-  したがって、未レビューの外部コンテンツが `WriteSkill` に到達しないようにしてください。別のパスで承認されるまで、新しい skills を候補者として保持します。
-  skill にその承認ゲートを編集させないでください。
-- **使用カウントの過大学習。** skill のロードはそれに従っていません。ロードカウントは、カタログがルーティングされたことを示します。
-  skill が結果を変えたとは言っていません。代わりに 2 つの数値を追跡します。skill が発火したかどうか、および走りが良くなったかどうかです。
+- **skill が発火しない。** description が曖昧すぎる。起動条件の形で description を書く。
+- **カタログが大きくなりすぎる。** skill が多すぎると prompt を圧迫する。skill を絞り込み、ローダーに削らせる。
+- **compaction の後に本文が失われる。** skill のファイルを読み直すか、本文を短く保つ。
+- **パスの踏み越え。** カタログはモデルにパスを渡す。Read tool を skills ディレクトリに限定し、`../` で抜け出せないようにする。
+- **fork した skill が現在の context を失う。** fork する skill は自己完結の作業にだけ使う。
+- **供給経路から入り込む汚染された skill。** 導入した第三者の skill は外部のコンテンツだが、指示として読み込まれる。
+  カタログがすでにそれを保証しているので、汚染された web ページより届く範囲が広い。
+  導入前に本文と同梱スクリプトを読む。バージョンを固定する。更新のたびにもう一度確認する。
+- **注入されたテキストが恒久化する。** `messages[]` への prompt injection は session とともに消える。同じテキストが `SKILL.md` に書かれると、以後すべての実行で読み込まれる。
+  だから、未確認の外部コンテンツを `WriteSkill` に届かせてはいけない。新しい skill は、別の処理が承認するまで候補として保留する。
+  その承認のゲートを skill に編集させてはいけない。
+- **使用回数が学習を過大に見せる。** skill を読み込むことは、それに従うことではない。読み込み回数が示すのは、カタログが振り分けたことだけ。
+  skill が結果を変えたかどうかは示さない。代わりに 2 つの数字を追う。skill が発火したか、そして実行が良くなったか。
 
 ---
 
-## 実行可能
+## 実行
 
-[`src/`](src/) 06 を前方に繰り上げて次を追加します。
+[`src/`](src/) は 06 を引き継ぎ、次を追加します。
 
-- [`skills.py`](src/skills.py): カタログ スキャン、システム プロンプト リスト、パス スコープの `Read` ツール、および進化の半分 (`WriteSkill`、`record_use`、 `stale_skills`)。
-- `skills/<name>/SKILL.md`: サンプル skills (リソース ファイルを含むものを含む)。
-- [`loop.py`](src/loop.py): skill のロードは単なるファイルの読み取りであるため、変更されません。
-- [`test.py`](src/test.py): カタログ スキャン、プロンプト リスト、ファイル ロード、パス トラバーサル拒否、使用量の増加、古さ、およびカタログに入るエージェント作成の skill をチェックします。
-- [`demo.py`](src/demo.py): エージェントは skill を使用し、新しいものを保存します。閉店時のスキャンは店舗が成長したことを示しています。
+- [`skills.py`](src/skills.py): カタログの走査、system prompt への一覧、パスを限定した `Read` tool、そして進化の側 (`WriteSkill`、`record_use`、`stale_skills`)。
+- `skills/<name>/SKILL.md`: 見本の skill。リソースファイル付きのものを含む。
+- [`loop.py`](src/loop.py): skill の読み込みはただのファイル読み込みなので変更なし。
+- [`test.py`](src/test.py): カタログの走査、prompt への一覧、ファイルの読み込み、パスの踏み越えの拒否、使用回数の増加、古さの判定、agent が書いた skill がカタログに入ることを検査。
+- [`demo.py`](src/demo.py): agent が skill を使い、その後で新しい skill を保存する。最後の走査で store が増えたことが分かる。
 
 ```bash
 python sections/07-skills/src/test.py         # offline checks, no key
@@ -227,20 +227,20 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
 
 ---
 
-## ソース
+## 出典
 
-- [Claude Code ソース](https://github.com/yasasbanukaofficial/claude-code):
-  `skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
-- [Hermes Agent ソース](https://github.com/NousResearch/hermes-agent):
-  `tools/skills_tool.py` (`skills_list`、`skill_view`)、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、 `tools/skills_ast_audit.py`。
-- [deepseek-harness ソース](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
-  `packages/skill/skill/src/index.ts`、`packages/skill/skill-filesystem/src/index.ts`、`packages/skill/tool-skill/src/index.ts`、
-  `docs/subsystems/skills.md`、`docs/tool-catalog.md`。
-- [Anthropic Agent Skills ベスト プラクティス](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure レベル。
-- [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code): セクションのフレーム化。
-- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter2.md`、`book/chapter8.md`、中国語オリジナルの正規版。
-- [エージェント Skills オープン スタンダード](https://agentskills.io): カタログの配置、system prompt、またはアクティベーション ツールの説明。
-- [Claude Code · prompt caching](https://code.claude.com/docs/en/prompt-caching): ロードされた skill ボディが着地する場所とそのコスト。
-- [Voyager](https://arxiv.org/abs/2305.16291): skill は、環境が検証した後にのみライブラリに入ります。
-- [Anthropic Skill Creator](https://github.com/anthropics/skills): 昇格前にドラフト、テスト、評価、修正します。
-- Lin et al.、[arXiv:2605.30621](https://arxiv.org/abs/2605.30621)、書籍より: 更新が適用されるかどうかと、更新が役立つかどうかは別の測定です。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `skills/loadSkillsDir.ts`, `skills/bundledSkills.ts`, `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts`, `tools/SkillTool/prompt.ts`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `tools/skills_tool.py` (`skills_list`, `skill_view`), `tools/skill_usage.py`, `hermes_cli/curator.py`, `tools/skills_hub.py`, `tools/skills_ast_audit.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/skill/skill/src/index.ts`, `packages/skill/skill-filesystem/src/index.ts`, `packages/skill/tool-skill/src/index.ts`,
+  `docs/subsystems/skills.md`, `docs/tool-catalog.md`.
+- [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure levels.
+- [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter2.md`, `book/chapter8.md`, Chinese original canonical.
+- [Agent Skills open standard](https://agentskills.io): catalog placement, system prompt or activation-tool description.
+- [Claude Code · prompt caching](https://code.claude.com/docs/en/prompt-caching): where a loaded skill body lands and what it costs.
+- [Voyager](https://arxiv.org/abs/2305.16291): a skill enters the library only after the environment verifies it.
+- [Anthropic Skill Creator](https://github.com/anthropics/skills): draft, test, evaluate, revise before promotion.
+- Lin et al., [arXiv:2605.30621](https://arxiv.org/abs/2605.30621), via the book: whether an update lands and whether it helps are separate measurements.

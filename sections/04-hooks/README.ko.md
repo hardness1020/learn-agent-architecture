@@ -2,28 +2,28 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어**
 
-> Hooks 루프 주변의 고정 지점에서 동작을 추가합니다.
+> hook은 loop 주위의 정해진 지점에 동작을 더합니다.
 
-Hooks 는 사용자 설정 콜백입니다. 도구 호출 전에, 도구 호출 후, 프롬프트 제출 시, 또는 세션 시작 및 종료 시 실행될 수 있습니다.
+hook은 사용자가 설정하는 callback입니다. tool call 전, tool call 후, prompt가 제출될 때, session이 시작하거나 멈출 때 실행될 수 있습니다.
 
-hooks 를 로깅, 검증, 알림, 소규모 정책 체크에 사용하세요. hooks 없이는 각 새로운 동작을 위해 루프를 수정하거나 포크해야 합니다.
+hook은 로그 기록, 검증, 알림, 작은 정책 검사에 씁니다. hook이 없으면 새 동작마다 loop를 고치거나 fork해야 합니다.
 
-Hooks 는 루프를 작게 유지합니다. 루프는 고정 이벤트를 노출합니다. 확장은 이러한 이벤트에 연결됩니다.
+hook은 loop를 작게 유지합니다. loop는 정해진 이벤트를 드러냅니다. 확장은 그 이벤트에 붙습니다.
 
 ---
 
 ## 메커니즘
 
-![메커니즘 다이어그램](assets/04-hooks.png)
+![Mechanism diagram](assets/04-hooks.png)
 
-`Hooks` 객체는 이벤트 이름을 콜백 목록에 매핑합니다. 루프는 사용자 정의 검사를 직접 호출하지 않습니다. 대신 `_dispatch` 는 명명된 이벤트를 발동합니다.
+`Hooks` 객체는 이벤트 이름을 callback 목록에 대응시킵니다. loop는 사용자가 만든 검사를 직접 호출하지 않습니다. 대신 `_dispatch`가 이름 붙은 이벤트를 발화합니다.
 
-도구 실행에는 두 가지 중요한 지점이 있습니다:
+tool 실행에는 중요한 지점이 둘 있습니다.
 
-- `PreToolUse`는 권한 게이트 전에 실행됩니다. 호출을 차단하거나 입력을 재작성할 수 있습니다.
-- `PostToolUse`는 도구 호출이 성공한 후 실행됩니다. 결과를 관찰할 수 있습니다.
+- `PreToolUse`는 permission gate 앞에서 실행됩니다. 호출을 막거나 입력을 고쳐 쓸 수 있습니다.
+- `PostToolUse`는 tool call이 성공한 뒤에 실행됩니다. 결과를 관찰할 수 있습니다.
 
-### 새로 추가: hooks
+### 새로 더하는 것: hook
 
 ```python
 class Hooks:                                     # src/hooks.py
@@ -37,15 +37,15 @@ class Hooks:                                     # src/hooks.py
         for fn in self._hooks["PostToolUse"]: fn(name, args, result)
 ```
 
-- `on(event, fn)`는 콜백을 등록합니다.
-- `fire_pre`는 `PreToolUse` 콜백을 실행합니다.
-- 사전 훅(pre-hook)은 차단을 위해 `{"deny": True}`를 반환할 수 있습니다.
-- 사전 훅(pre-hook)은 입력을 재작성하기 위해 `{"updated_args": ...}`를 반환할 수 있습니다.
-- `fire_post`는 실행 후 옵저버들을 실행합니다.
+- `on(event, fn)`은 callback을 등록합니다.
+- `fire_pre`는 `PreToolUse` callback들을 실행합니다.
+- pre-hook은 `{"deny": True}`를 반환해 호출을 막을 수 있습니다.
+- pre-hook은 `{"updated_args": ...}`를 반환해 입력을 고쳐 쓸 수 있습니다.
+- `fire_post`는 실행 뒤에 관찰자들을 돌립니다.
 
 ### 통합 방식
 
-`_dispatch`에는 두 개의 호출이 추가됩니다:
+`_dispatch`에 호출 두 개가 더해집니다.
 
 ```python
 # src/loop.py _dispatch
@@ -57,85 +57,85 @@ out = res(run_tool(tool, args))                          # 2 · execute -> tool_
 hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 ```
 
-- 차단되거나 거부된 호출은 절대 `run_tool`에 도달하지 않습니다.
-- `PostToolUse`는 성공적인 실행 후에만 실행됩니다.
-- Hooks는 권한 결과를 강화할 수 있지만, 완화해서는 안 됩니다.
-- Claude Code에서, `resolveHookPermissionDecision`는 hook 출력과 규칙 기반 권한을 조정합니다.
+- 막히거나 거부된 호출은 절대 `run_tool`까지 가지 않습니다.
+- `PostToolUse`는 실행이 성공한 뒤에만 돕니다.
+- hook은 permission 결과를 더 조일 수는 있어도 느슨하게 풀어서는 안 됩니다.
+- Claude Code에서는 `resolveHookPermissionDecision`이 hook의 출력과 규칙 기반 permission을 맞춰 정리합니다.
 
-데모에서는 `PreToolUse` hook을 사용하여 `rm -rf`를 `bypassPermissions` 아래에서도 차단합니다.
+데모는 `PreToolUse` hook으로 `bypassPermissions` 아래에서도 `rm -rf`를 막습니다.
 
-이 섹션에서는 라이프사이클 hooks를 다룹니다. `hooks/` 폴더에 있는 React 렌더 hooks는 동일한 단어를 공유하는 관련 없는 UI 코드입니다.
+이 섹션은 수명 주기 hook을 다룹니다. `hooks/` 폴더에 있는 React 렌더링 hook은 단어만 같을 뿐 관계없는 UI 코드입니다.
 
-### 대비: 워터폴 hooks
+### 대비: waterfall hook
 
-Claude Code에서, hook은 외부 명령입니다. harness는 이를 서브프로세스로 실행하고 종료 코드와 출력을 읽습니다.
-deepseek-harness에서 hook은 harness 프로세스 내에서 실행되는 일반 함수입니다.
-도구 호출 전에 실행되는 것과 같은 명명된 이벤트에 등록합니다.
-그리고 종료 코드 대신 deny, ask 또는 allow와 같은 일반 값인 타입화된 결정을 반환합니다.
+Claude Code에서 hook은 외부 명령입니다. harness는 그것을 하위 프로세스로 실행하고 종료 코드와 출력을 읽습니다.
+deepseek-harness에서 hook은 harness 프로세스 안에서 도는 평범한 함수입니다.
+hook은 이름 붙은 이벤트에 등록되는데, tool call 앞에서 발화하는 이벤트가 그런 예입니다.
+그리고 종료 코드 대신 타입이 붙은 결정을 반환합니다. deny, ask, allow 같은 평범한 값입니다.
 
-여러 hooks가 하나의 이벤트에 등록할 수 있습니다. 이들은 체인을 형성하며, 이벤트는 첫 번째 것만 실행됩니다.
-각 hook은 이벤트 데이터와 함께 `next()` 콜백을 받으며, 그 후 두 가지 동작 중 하나를 선택합니다:
+하나의 이벤트에 hook 여럿이 등록될 수 있습니다. 이들은 사슬을 이루고, 이벤트는 첫 번째 hook만 발화시킵니다.
+각 hook은 이벤트 데이터와 함께 `next()` callback을 받고, 두 가지 중 하나를 고릅니다.
 
-- `next()`를 호출하지 않고 결정을 반환합니다. 체인은 여기서 멈추며, 아래에 있는 Hooks는 실행되지 않습니다.
-- `next()`를 호출합니다. 체인의 나머지가 결정을 내리고, 이 hook은 그 결과를 그대로 또는 조정하여 반환합니다.
+- `next()`를 부르지 않고 결정을 반환합니다. 사슬은 여기서 멈추고, 아래쪽 hook은 아예 실행되지 않습니다.
+- `next()`를 부릅니다. 사슬의 나머지가 결정하고, 이 hook은 그 결과를 그대로 또는 손질해서 반환합니다.
 
-dsh는 이 디스패치 방식을 워터폴이라고 부릅니다. 기존 Claude Code 셸 hooks도 여전히 작동합니다: 브리지가 이를 실행합니다
-그리고 그들의 출력을 같은 유형의 결정으로 바꿉니다. 여러 쉘 hooks가 동시에 응답할 때,
-그 다리는 가장 엄격한 답을 유지한다: 거부가 요청보다 우세하고, 요청이 허용보다 우세하다.
+dsh는 이런 dispatch 방식을 waterfall이라고 부릅니다. 기존 Claude Code의 shell hook도 그대로 동작하는데, 브리지가 그것들을 실행하고
+출력을 같은 타입의 결정으로 바꿉니다. shell hook 여럿이 한꺼번에 답하면, 브리지는 가장 엄격한 답을 남깁니다.
+deny가 ask를 이기고, ask가 allow를 이깁니다.
 
-[`src/waterfall.py`](src/waterfall.py)는 이것의 축소판입니다. 이것은 대조 데모이며, `_dispatch`에 연결되어 있지 않아서, 이후 섹션들은 동일한 루프를 이어갑니다.
+[`src/waterfall.py`](src/waterfall.py)는 이것을 최소로 줄인 것입니다. 대비용 데모라 `_dispatch`에 연결되어 있지 않고, 그래서 뒤 섹션들은 같은 loop를 그대로 이어받습니다.
 
-### 추가 읽기
+### 더 읽을거리
 
-이것들 중 어느 것도 `src/`에 없습니다. 이것은 ai-agent-book에서 가져온 것이며, 표에 있는 시스템들이 확인된 것은 아닙니다.
+이 내용은 `src/`에 없습니다. ai-agent-book에서 온 것이며, 표에 있는 시스템들에서 확인된 내용은 아닙니다.
 
-예제는 쓰기 시 린트입니다. 쓰기 또는 편집 도구가 반환됩니다. 그런 다음 hook이 변경된 파일에 대해 린터를 실행합니다.
-이것은 진단 정보를 tool result에 추가합니다. 모델은 다음 차례에 오류를 읽으며, 쓰기 확인 옆에서 읽습니다.
-hook이 없으면, 그 오류는 다음 빌드 또는 테스트 실행을 기다립니다.
+예는 쓰기 시점의 lint입니다. 쓰기나 편집 tool이 결과를 반환합니다. 그러면 hook이 바뀐 파일에 linter를 돌립니다.
+그리고 진단 결과를 tool 결과에 덧붙입니다. 모델은 다음 turn에서 쓰기 확인 메시지 옆에 붙은 그 오류를 읽습니다.
+hook이 없으면 그 오류는 다음 빌드나 테스트 실행까지 기다립니다.
 
-이 패턴이 저렴하게 유지되는 이유는 두 가지입니다.
+이 패턴이 싸게 유지되는 이유는 둘입니다.
 
-- 진단 정보가 tool result 안으로 다시 들어가므로, 추가 차례가 필요 없습니다.
-- 검사 대상이 전체 프로젝트가 아닌 하나의 파일이므로, 쓰기 작업만큼의 시간이 걸립니다.
+- 진단 결과가 tool 결과 안으로 돌아가므로, turn이 더 필요하지 않습니다.
+- 검사가 프로젝트 전체가 아니라 파일 하나만 보므로, 쓰기와 비슷한 시간이면 끝납니다.
 
-이 패턴에는 한계가 있습니다. 차단된 쓰기는 절대 실행되지 않으므로, hook은 진단 정보를 생성하지 않습니다.
+이 패턴에는 한계가 하나 있습니다. 막힌 쓰기는 실행되지 않으므로, hook은 진단 결과를 내놓지 않습니다.
 
 ---
 
 ## 시스템별
 
-각 에이전트가 루프 주변에서 인터셉션 포인트를 어떻게 노출하는지.
+각 agent가 loop 주위의 가로채기 지점을 어떻게 드러내는지 봅니다.
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **장점** | 사용자가 루프를 편집하지 않고 동작을 확장할 수 있음: 로깅, 검증, 알림, 정책 검사. | Hooks는 처리 중 plugins에 있음; 기존 셸 hooks는 여전히 실행됨. |
-| **단점** | 고정된 이벤트 목록이 한계임. hook은 이벤트가 있는 곳에서만 가로챌 수 있음. | 배우야 할 hook 방식이 두 가지; 브리지는 일부만 덮어쓰며 입력을 다시 작성할 수 없음. |
-| **이유** | 루프를 작게 유지함. 새로운 동작은 포크가 아닌 고정 이벤트에 연결됨. | 확장 표면은 harness 자체가 실행되는 이벤트 시스템임. |
-| **방법: hook 이벤트** | 도구, 프롬프트, 세션, 정지, subagent, 압축, 설정에 걸쳐 27개의 라이프사이클 이벤트. | 단계별 워터폴 및 직렬 이벤트; 브리지는 셸 hooks에 연결됨. |
-| **방법: 발화점(fire point)** | 설정에서 불러오고 시작 시 고정됨. `PreToolUse`는 권한 게이트 이전에 발화됨. | 실행 전 워터폴(pre-execute waterfall)에서, 거부 전용(deny-only) 가드 이전에. |
-| **방법: 차단하거나 수정할 수 있는가?** | 예. 거부, 요청, 입력 업데이트, 컨텍스트 추가, 또는 중지; 규칙과 조정됨. | 예, 타입된 결정(typed decisions)을 통해; 셸(shell) hooks는 거부 > 요청 > 허용 순으로 접기(fold). |
+| **장점** | 사용자가 loop를 고치지 않고 동작을 확장함. 로그 기록, 검증, 알림, 정책 검사. | hook이 프로세스 내 plugin. 기존 shell hook도 그대로 돎. |
+| **단점** | 정해진 이벤트 목록이 곧 한계. hook은 이벤트가 있는 자리에서만 가로챔. | 익힐 hook 방식이 둘. 브리지는 일부만 다루고 입력을 고쳐 쓰지 못함. |
+| **이유** | loop를 작게 유지함. 새 동작은 fork가 아니라 정해진 이벤트에 붙음. | 확장 인터페이스가 harness 자신이 돌아가는 이벤트 시스템 그 자체. |
+| **방법: hook 이벤트** | tool, prompt, session, stop, subagent, compact, setup에 걸친 수명 주기 이벤트 27개. | 단계마다 waterfall 이벤트와 직렬 이벤트. 브리지가 shell hook을 붙임. |
+| **방법: 발화 지점** | 설정에서 로드해 시작 시점에 고정. `PreToolUse`는 permission gate 앞에서 발화. | 실행 직전 waterfall 안, 거부만 하는 guard 앞. |
+| **방법: 막거나 고칠 수 있는가?** | 예. 거부, 질문, 입력 갱신, context 추가, 정지. 규칙과 맞춰 정리됨. | 예. 타입이 붙은 결정으로. shell hook은 deny > ask > allow로 접힘. |
 
 ---
 
 ## 실패 모드
 
-- **Hook은 권한을 우회함.** hook은 거부된 행동을 허용하려 할 수 있음. hook 출력을 규칙 기반 권한과 맞춤.
-- **hook 루프를 영원히 중지.** `Stop` hook은 차단, 자기 수정(trigger self-correction) 트리거, 다시 발화 가능. 이미 활성화된 중지(stop) hook을 추적.
-- **Hook 세션 중 구성 변경.** 프로세스가 시작 후 설정을 편집할 수 있습니다. hook 구성을 한 번 스냅샷하세요.
-- **느린 hook이 루프를 멈춤.** hook이 느린 작업을 위해 셸 아웃할 수 있습니다. 타임아웃을 추가하세요.
-- **PostToolUse가 예상치 않게 중지됨.** 포스트 훅이 `preventContinuation`를 반환하면, 충돌이 아니라 정상 종료로 표시하세요.
-- **진단이 결과를 폭주시킴.** 전체 프로젝트에 대한 린트 실행은 실제 작성 내용보다 더 많은 텍스트를 반환할 수 있습니다. 변경된 파일만 확인하고, 추가되는 내용을 제한하세요.
+- **hook의 permission 우회.** hook이 거부된 행동을 허용하려 들 수 있습니다. hook의 출력을 규칙 기반 permission과 맞춰 정리합니다.
+- **Stop hook의 무한 반복.** `Stop` hook은 정지를 막고, 자기 교정을 부르고, 다시 발화할 수 있습니다. stop hook이 이미 동작 중인지 추적합니다.
+- **session 도중의 hook 설정 변경.** 어떤 프로세스가 시작 뒤에 설정을 고칠 수 있습니다. hook 설정은 한 번만 찍어 둡니다.
+- **느린 hook이 loop를 멈춰 세움.** hook이 느린 작업을 shell로 넘길 수 있습니다. timeout을 둡니다.
+- **PostToolUse의 예기치 않은 정지.** post-hook이 `preventContinuation`을 반환하면, 크래시가 아니라 정상적인 정지로 드러냅니다.
+- **진단 결과가 결과를 뒤덮음.** 프로젝트 전체에 lint를 돌리면 쓰기 자체보다 많은 텍스트가 돌아올 수 있습니다. 바뀐 파일만 검사하고, 덧붙이는 양에 상한을 둡니다.
 
 ---
 
-## 실행 가능
+## 실행 방법
 
-[`src/`](src/)는 03을 이어받아 다음을 추가합니다:
+[`src/`](src/)는 03을 이어받아 다음을 더합니다.
 
-- [`hooks.py`](src/hooks.py): `Hooks` 객체로 `fire_pre` 및 `fire_post`와 함께.
-- [`loop.py`](src/loop.py): `_dispatch`는 게이트 전에 `PreToolUse`를 발사하고, 실행 후에는 `PostToolUse`를 발사합니다.
-- [`waterfall.py`](src/waterfall.py): deepseek-harness 대비: hook 체인과 `next()` 위임, 그리고 가장 엄격한-우선 병합(거부 > 요청 > 허용).
-- [`test.py`](src/test.py): 사전 훅은 `bypassPermissions` 아래에서도 `rm -rf`를 차단합니다; 워터폴 검사는 결정, 위임, 병합을 모두 다룹니다.
+- [`hooks.py`](src/hooks.py): `fire_pre`와 `fire_post`를 가진 `Hooks` 객체.
+- [`loop.py`](src/loop.py): `_dispatch`가 gate 앞에서 `PreToolUse`를, 실행 뒤에 `PostToolUse`를 발화합니다.
+- [`waterfall.py`](src/waterfall.py): deepseek-harness와의 대비. `next()` 위임이 있는 hook 사슬과, 가장 엄격한 쪽이 이기는 병합(deny > ask > allow).
+- [`test.py`](src/test.py): pre-hook이 `bypassPermissions` 아래에서도 `rm -rf`를 막습니다. waterfall 검사는 결정, 위임, 병합을 다룹니다.
 
 ```bash
 python sections/04-hooks/src/test.py         # offline checks, no key
@@ -146,11 +146,11 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ## 출처
 
-- [Claude Code 출처](https://github.com/yasasbanukaofficial/claude-code):
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
-- [deepseek-harness 출처](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) `dsh-v0.1.0-rc.7`:
   `packages/hooks/README.md`, `packages/hooks/hooks-claude-code/README.md`, `packages/hooks/hook-protocol/README.md`,
   `docs/cordis-primer.md`, `docs/subsystems/core.md`.
-- [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): 섹션 프레이밍.
-- [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; 중국 원문이 기준):
-  쓰기 시 린트: 도구 계층이 쓰기 후 린터를 실행하고 진단 정보를 tool result에 추가합니다.
+- [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): 섹션 구성.
+- [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰. 중국어 원문이 기준):
+  쓰기 시점의 lint. tool 계층이 쓰기 뒤에 linter를 돌리고 진단 결과를 tool 결과에 덧붙입니다.
