@@ -1,4 +1,4 @@
-<h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
+<h1 align="center" style="margin-top: 0;">Learn Agent Architecture</h1>
 
 <p align="center">
   <strong>최신 AI agent가 LLM을 중심으로 어떻게 만들어지는지 배웁니다.</strong><br>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
+  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Learn Agent Architecture">
 </p>
 
 <p align="center">
@@ -133,7 +133,7 @@ loop는 작습니다. 엔지니어링 대부분은 그 주위에 있습니다. t
 `00-harness-thesis/`부터 `23-evaluation/`까지 섹션 글 24개가 모두 있습니다.
 
 ```text
-awesome-agent-architecture/
+learn-agent-architecture/
 ├── README.md                  # top-level map
 ├── sections/                  # one folder per section
 │   ├── 00-harness-thesis/     # README.md per section

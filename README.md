@@ -1,4 +1,4 @@
-<h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
+<h1 align="center" style="margin-top: 0;">Learn Agent Architecture</h1>
 
 <p align="center">
   <strong>Learn how modern AI agents are built around the LLM.</strong><br>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
+  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Learn Agent Architecture">
 </p>
 
 <p align="center">
@@ -133,7 +133,7 @@ Eight layers, from the basic loop to a harness that runs itself. Each row links 
 All 24 section writeups are present, from `00-harness-thesis/` through `23-evaluation/`.
 
 ```text
-awesome-agent-architecture/
+learn-agent-architecture/
 ├── README.md                  # top-level map
 ├── sections/                  # one folder per section
 │   ├── 00-harness-thesis/     # README.md per section

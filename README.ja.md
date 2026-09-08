@@ -1,4 +1,4 @@
-<h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
+<h1 align="center" style="margin-top: 0;">Learn Agent Architecture</h1>
 
 <p align="center">
   <strong>現代の AI agent が LLM の周りにどう組み立てられているかを学びます。</strong><br>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
+  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Learn Agent Architecture">
 </p>
 
 <p align="center">
@@ -133,7 +133,7 @@ loop そのものは小さいです。工学の大部分はその周りにあり
 24 本のセクション解説がすべて揃っています。`00-harness-thesis/` から `23-evaluation/` までです。
 
 ```text
-awesome-agent-architecture/
+learn-agent-architecture/
 ├── README.md                  # top-level map
 ├── sections/                  # one folder per section
 │   ├── 00-harness-thesis/     # README.md per section
