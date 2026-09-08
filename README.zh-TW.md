@@ -1,4 +1,4 @@
-<h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
+<h1 align="center" style="margin-top: 0;">Learn Agent Architecture</h1>
 
 <p align="center">
   <strong>學會現代 AI agent 如何圍繞 LLM 打造。</strong><br>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
+  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Learn Agent Architecture">
 </p>
 
 <p align="center">
@@ -132,7 +132,7 @@
 24 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `23-evaluation/`。
 
 ```text
-awesome-agent-architecture/
+learn-agent-architecture/
 ├── README.md                  # 最上層地圖
 ├── sections/                  # 每個章節一個資料夾
 │   ├── 00-harness-thesis/     # 每章一份 README.md
