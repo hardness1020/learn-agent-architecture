@@ -137,6 +137,8 @@ def grade(task, run):                                  # src/evaluation.py
 解法都不难：评判者换成不同家族的 model；配对比较时把顺序对调，再评一次；
 大规模用之前，先拿人工标好的 gold set 校准；两边判不一样的，就送人工看。
 
+[EvalGrill](https://github.com/hardness1020/EvalGrill) 把这套流程包成工具：把 agent 应用的真实案例做成 eval，先把 judge 校准好再信它。
+
 ### dataset 决定分数代表什么
 
 环境做得再好，dataset 不行，跑出来的就是噪音。各家 benchmark 反复验证出四条原则。
