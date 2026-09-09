@@ -27,10 +27,11 @@
 这个 repo 会逐章拆解 harness 的核心组件，包括 loop、tool、memory、permission、context、task 和 interface。
 读完之后，你会更容易看懂各种 agent。coding 工具、聊天助手和自动化运行器看起来差很多，但核心差异通常都来自 harness 的设计选择。
 
-如果想把单一主题学得更深，也可以接着看这两个延伸 repo：
+如果想把单一主题学得更深，也可以接着看这三个延伸 repo：
 
 - [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：把 memory loop 扩展成适合 production 的完整 memory 子系统。
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)：从零重建 deepseek-harness，每一章专注拆解一个 plugin 接口。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill)：把 agent 应用的真实案例转成可重现、可验证的 eval set。
 
 **目录：** [Agent loop](#agent-loop) · [学习方法](#学习方法) · [研究的系统](#研究的系统) ·
 [各章节](#各章节) · [文件结构](#文件结构) · [执行示例](#执行示例)
@@ -199,6 +200,7 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 极简 SWE agent（MIT），作为第三个研究系统。
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 以 plugin 为基础的 agent harness（MIT），作为第四个研究系统。
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以代码为主的 harness 重建与章节架构。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): 应用第 23 章做法的延伸工具 (Apache-2.0)，把 agent 应用的真实案例做成 eval set。
 - [Anthropic Agent Skills 最佳实践](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的渐进式披露层级。
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache 断点、TTL、计价与 token 下限。
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop 的组成模块与成熟度分级。
