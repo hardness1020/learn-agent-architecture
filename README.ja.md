@@ -213,3 +213,13 @@ PR のチェックリスト全体は [CONTRIBUTING.md](CONTRIBUTING.md) を見�
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): ワークフローと agent の違い、および 5 つのワークフロー類型。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): コードで書くルーティングと、ノード間の context 分離。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰 著『深入理解 AI Agent』(Apache-2.0)。第 6 章が評価のセクションの土台です。
+
+---
+
+## 謝辞
+
+本プロジェクトを掲載してくれた以下のコレクションに感謝します。
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
