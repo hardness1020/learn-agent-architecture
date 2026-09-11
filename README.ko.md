@@ -213,3 +213,13 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow와 agent의 대비, 그리고 다섯 가지 workflow 형태.
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 코드로 하는 라우팅과 노드 사이의 context 격리.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰의 《深入理解 AI Agent》(Apache-2.0). 6장이 평가 섹션의 근거입니다.
+
+---
+
+## 감사의 말
+
+이 프로젝트를 실어 준 다음 컬렉션에 감사드립니다.
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)

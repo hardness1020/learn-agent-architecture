@@ -212,3 +212,13 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow 与 agent 的分界，加上五种 workflow 图形。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 用代码选路，以及 node 之间的 context 隔离。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》（李博杰著，Apache-2.0）。第 6 章是评估本章的主要出处。
+
+---
+
+## 致谢
+
+感谢这些收录清单把本项目列进去：
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
