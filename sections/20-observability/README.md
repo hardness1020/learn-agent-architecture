@@ -216,4 +216,7 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
 - Evaluation is not present in the Claude Code source, and section 23 owns it here. Held-out task sets and LLM-as-judge remain reconstruction and general practice.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
   `serialize` and `save` in `agents/default.py`, `GLOBAL_MODEL_STATS` in `models/__init__.py`, `run/benchmarks/swebench.py`, `run/utilities/inspector.py`.
+- [ClawBench](https://github.com/TIGER-AI-Lab/ClawBench): a live-site web-agent
+  benchmark that records browser actions, screenshots, network traffic, replay
+  video, and agent messages for reproducible offline evaluation. ([paper](https://arxiv.org/abs/2604.08523), [project](https://claw-bench.com/))
 - Framing: [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code).
