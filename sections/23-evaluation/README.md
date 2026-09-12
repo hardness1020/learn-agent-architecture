@@ -140,6 +140,8 @@ A judge from the same family as the agent shares its blind spots, so it forgives
 The mitigations are cheap. Use judges from different families. Grade pairs twice with the order swapped.
 Calibrate the judge against a human-labeled gold set before trusting it at scale, and send disagreement to a human.
 
+[EvalGrill](https://github.com/hardness1020/EvalGrill) packages this workflow: it builds evals from real agent-application cases and calibrates the judge before trusting it.
+
 ### The dataset decides what the score means
 
 A perfect environment running a bad dataset returns noise. Four rules survive across benchmarks.

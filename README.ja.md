@@ -28,10 +28,11 @@
 この repo は harness をセクションごとに解説します。loop、tool、memory、permission、context、task、そしてインターフェースです。
 一度身につければ多くの agent が読めるようになります。コーディング用の tool もチャットアシスタントも自律実行型の runner も、違いのほとんどは harness の選択にあるからです。
 
-1 セクションでは収まらない話題は、2 つの姉妹 repo で掘り下げています。
+1 セクションでは収まらない話題は、3 つの姉妹 repo で掘り下げています。
 
 - [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): memory loop を本番向けの memory サブシステムまで拡張します。
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness): deepseek-harness をゼロから学びます。plugin の接合部を 1 つずつ追います。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): agent を使う実際の事例を、再現でき検証できる eval セットに変えます。
 
 **目次:** [Loop](#agent-loop) · [学び方](#学び方) · [研究対象のシステム](#研究対象のシステム) ·
 [セクション一覧](#セクション一覧) · [リポジトリ構成](#リポジトリ構成) · [デモの実行](#デモの実行)
@@ -200,6 +201,7 @@ PR のチェックリスト全体は [CONTRIBUTING.md](CONTRIBUTING.md) を見�
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 3 つめの研究対象にした最小構成の SWE agent (MIT)。
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 4 つめの研究対象にした plugin ベースの agent harness (MIT)。
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): コード起点の harness 再構成と、セクションの組み立て方。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): セクション 23 を実践する姉妹ツール (Apache-2.0)。agent を使う実際の事例から eval セットを作ります。
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skill における段階的な開示のレベル。
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache の区切り、TTL、価格、最小 token 数。
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop の構成要素と成熟度レベル。
@@ -211,3 +213,13 @@ PR のチェックリスト全体は [CONTRIBUTING.md](CONTRIBUTING.md) を見�
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): ワークフローと agent の違い、および 5 つのワークフロー類型。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): コードで書くルーティングと、ノード間の context 分離。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰 著『深入理解 AI Agent』(Apache-2.0)。第 6 章が評価のセクションの土台です。
+
+---
+
+## 謝辞
+
+本プロジェクトを掲載してくれた以下のコレクションに感謝します。
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)

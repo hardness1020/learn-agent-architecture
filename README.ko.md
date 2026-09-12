@@ -28,10 +28,11 @@
 이 저장소는 harness를 섹션 단위로 설명합니다. loop, tool, memory, permission, context, task, 인터페이스 순입니다.
 한 번 익히면 여러 agent를 읽을 수 있는데, coding tool과 chat assistant, 자율 실행기의 차이는 대부분 harness 선택에서 오기 때문입니다.
 
-섹션 하나로는 다 담기 어려운 두 주제는 짝이 되는 저장소에서 더 깊이 다룹니다.
+섹션 하나로는 다 담기 어려운 세 주제는 짝이 되는 저장소에서 더 깊이 다룹니다.
 
 - [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): memory loop를 프로덕션 memory 서브시스템으로 키웁니다.
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness): deepseek-harness를 plugin seam 하나씩 처음부터 익힙니다.
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): agent를 실제로 쓴 사례를 재현하고 검증할 수 있는 eval 세트로 바꿉니다.
 
 **목차:** [Loop](#agent-loop) · [학습 방법](#학습-방법) · [대상 시스템](#연구-대상-시스템) ·
 [섹션](#섹션) · [구조](#리포지토리-구조) · [실행](#데모-실행)
@@ -200,6 +201,7 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 세 번째 연구 대상으로 삼은 최소 SWE agent(MIT).
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 네 번째 연구 대상으로 삼은 plugin 기반 agent harness(MIT).
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 코드 우선의 harness 재구성과 섹션 구성.
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): 섹션 23을 실천하는 짝 도구 (Apache-2.0). agent를 실제로 쓴 사례에서 eval 세트를 만듭니다.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skill의 점진적 공개 단계.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): 캐시 분기점, TTL, 가격, 최소 token 수.
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop 구성 요소와 준비도 단계.
@@ -211,3 +213,13 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow와 agent의 대비, 그리고 다섯 가지 workflow 형태.
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 코드로 하는 라우팅과 노드 사이의 context 격리.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰의 《深入理解 AI Agent》(Apache-2.0). 6장이 평가 섹션의 근거입니다.
+
+---
+
+## 감사의 말
+
+이 프로젝트를 실어 준 다음 컬렉션에 감사드립니다.
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)

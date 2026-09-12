@@ -28,10 +28,11 @@ A model call cannot do any of those things by itself.
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
 Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
-Two companion repos go deeper than one section can:
+Three companion repos go deeper than one section can:
 
 - [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): scales the memory loop into a production memory subsystem.
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness): learns deepseek-harness from scratch, one plugin seam at a time.
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): turns real cases from agent applications into reproducible, verifiable eval sets.
 
 **Contents:** [Loop](#the-agent-loop) · [Method](#how-to-learn) · [Systems](#systems-under-study) ·
 [Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
@@ -200,6 +201,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): Minimal SWE agent (MIT) used as the third system under study.
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): Plugin-based agent harness (MIT) used as the fourth system under study.
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): companion tool (Apache-2.0) that applies section 23, building eval sets from real agent-application cases.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): Cache breakpoints, TTLs, pricing, and token minimums.
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): Loop building blocks and readiness levels.
@@ -211,3 +213,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): Workflows vs agents and the five workflow shapes.
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): Routing in code and context isolation between nodes.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》 by 李博杰 (Apache-2.0). Chapter 6 grounds the evaluation section.
+
+---
+
+## Acknowledgements
+
+Thanks to these collections for listing this project:
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)

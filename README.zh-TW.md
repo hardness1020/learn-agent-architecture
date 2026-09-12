@@ -27,10 +27,11 @@
 這個 repo 會逐章拆解 harness 的核心元件，包括 loop、tool、memory、permission、context、task 和 interface。
 讀完之後，你會更容易看懂各種 agent。coding 工具、聊天助理和自動化執行器看起來差很多，但核心差異通常都來自 harness 的設計選擇。
 
-如果想把單一主題學得更深，也可以接著看這兩個延伸 repo：
+如果想把單一主題學得更深，也可以接著看這三個延伸 repo：
 
 - [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：把 memory loop 擴充成適合 production 的完整 memory 子系統。
 - [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)：從零重建 deepseek-harness，每一章專注拆解一個 plugin 介面。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill)：把 agent 應用的真實案例轉成可重現、可驗證的 eval set。
 
 **目錄：** [Agent loop](#agent-loop) · [學習方法](#學習方法) · [研究的系統](#研究的系統) ·
 [各章節](#各章節) · [檔案結構](#檔案結構) · [執行示範](#執行示範)
@@ -199,6 +200,7 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 極簡 SWE agent（MIT），作為第三個研究系統。
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 以 plugin 為基礎的 agent harness（MIT），作為第四個研究系統。
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以程式碼為主的 harness 重建與章節架構。
+- [EvalGrill](https://github.com/hardness1020/EvalGrill): 應用第 23 章做法的延伸工具 (Apache-2.0)，把 agent 應用的真實案例做成 eval set。
 - [Anthropic Agent Skills 最佳實踐](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的漸進式揭露層級。
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache 斷點、TTL、計價與 token 下限。
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop 的組成模組與成熟度分級。
@@ -210,3 +212,13 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow 與 agent 的分界，加上五種 workflow 圖形。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 用程式碼選路，以及 node 之間的 context 隔離。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》（李博杰著，Apache-2.0）。第 6 章是評估本章的主要出處。
+
+---
+
+## 致謝
+
+感謝這些收錄清單把本專案列進去：
+
+- [walkinglabs/awesome-harness-engineering](https://github.com/walkinglabs/awesome-harness-engineering)
+- [Jenqyang/Awesome-AI-Agents](https://github.com/Jenqyang/Awesome-AI-Agents)
+- [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
