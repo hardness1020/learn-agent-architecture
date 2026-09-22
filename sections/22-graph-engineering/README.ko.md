@@ -59,6 +59,47 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 이 척도가 곧 예산 규율입니다: 분기를 미리 알 수 있는 곳은 코드로 라우팅하고, 모델 호출은 판단이 필요한 노드 안에서만 씁니다.
 
+### 엣지: 코드로 쓴 규칙 대신 타입이 정해진 결정
+
+엣지는 적어 둘 수 있는 조건식입니다. 그런데 그렇게 적히지 않는 분기가 있습니다. 이 명령은 파괴적인가? 이 티켓은 결제 문제인가?
+그 분기가 harness의 몫이라는 것은 알지만 코드로 적을 수가 없어서, 결국 모델로 다시 넘어가고 라우팅에 또 turn 하나가 통째로 듭니다.
+
+그 둘 사이에 세 번째 종류의 엣지가 있습니다. 좁은 질문 하나를 던져 숫자 하나를 돌려받고, 그 숫자로 코드에서 분기합니다:
+
+```python
+def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/decide.py
+    if p is None:
+        return "ask"                               # no layer, or the call failed
+    if conf is not None and conf < conf_floor:
+        return "ask"                               # too flat to act on either way
+    if p >= deny_above:
+        return "deny"
+    if p <= allow_below:
+        return "allow"
+    return "ask"                                   # the band: this is where a person goes
+```
+
+그렇다고 라우팅이 모델로 되돌아가는 것은 아닙니다. `route`는 그냥 코드이고, 분기를 고르는 것도 여전히 코드입니다.
+이 호출로 사는 것은 숫자 하나, 코드가 스스로는 계산해 낼 수 없던 숫자 하나뿐입니다. 이 섹션 맨 앞 목록의 2번은 그대로 성립하고, 이 단락은 그 밑을 받치는 근거입니다.
+
+- **임계값은 하나가 아니라 둘.** 자르는 지점이 하나면 모든 입력에 판정을 강요하게 됩니다. 답이 가장 못하는 입력까지 그렇습니다.
+  지점이 둘이면 가운데에 구간이 하나 남고, harness는 그 구간에서 멈춰 사람에게 물어봅니다.
+- **이 층은 좁히기만 합니다.** 그래프가 이미 그려 둔 분기에 점수를 매길 뿐, 분기를 새로 만들지는 않습니다.
+  키가 없거나, timeout이 나거나, 답의 형식이 깨지면 숫자가 나오지 않고 `ask`로 갑니다. 검사가 망가지면 harness의 기본 동작으로 떨어지는 것입니다.
+- **confidence는 조이기만 합니다.** 밋밋한 답은 판정을 `ask` 쪽으로 밀 뿐, `allow` 쪽으로는 절대 밀지 않습니다.
+
+이것을 모든 단계에서 돌릴 만큼 싸게 만들어 주는 것이 decision model입니다. TypeSafe의 Jev는 상태 하나와 타입이 정해진 질문 묶음을 받아서,
+질문마다 확률 하나와 그 답이 얼마나 뾰족했는지를 돌려줍니다. 텍스트도 없고, 사고 과정도 없고, 파싱할 것도 없습니다.
+요청에 담긴 질문은 전부 한 번에 답하므로, 다섯 개를 묻는 비용이 하나를 묻는 비용과 비슷합니다.
+그래서 이 엣지가 성립합니다. 이 호출의 값은 turn이 아니라 코드처럼 매겨집니다.
+
+따라오는 한계가 셋 있고, 셋 다 공급사가 스스로 밝힌 것입니다. 타입이 정해진 답은 형식이 올바른 답이지, 맞는 답과 같은 말이 아닙니다.
+보정은 답 한 묶음의 성질이지, 지금 눈앞에 있는 답 하나의 성질이 아닙니다.
+그리고 상태는 적대적 입력이 아니라 데이터로 읽히므로, 답을 유도하려고 써 넣은 텍스트가 답을 움직일 수 있습니다.
+
+그래서 모양은 대체가 아니라 사다리입니다. 이름 붙일 수 있는 분기에는 규칙, 이름 붙일 수 없는 긴 꼬리에는 타입이 정해진 호출,
+그 사이 구간에는 사람. 섹션 3의 permission 계층이 규칙 단이고, 이것은 그 아래 단입니다.
+
 ### 이름 붙은 모양들
 
 출처들이 이름 붙인 workflow 패턴은 곧 그래프의 모양입니다:
@@ -90,6 +131,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 - 워커와 검사기를 노드로 나누는 것은 섹션 6이고, 형제 갈래는 섹션 15의 worktree에서 격리됩니다.
 - 단계 예산과 에스컬레이션 계약은 섹션 21입니다.
 - trace는 섹션 20의 telemetry로 들어갑니다. 어떤 엣지가 발화했는지를 보면 어떤 갈래가 죽어 있는지 알 수 있습니다.
+- 타입이 정해진 엣지는 그 임계값 둘만큼만 좋습니다. 그리고 그 둘은 누군가가 고른 상수입니다. 섹션 23은 라벨이 붙은 로그로 그 값들을 채점합니다.
 
 실행 가능한 코드는 위 그림의 demo 그래프를 그대로 연결합니다:
 
@@ -161,6 +203,12 @@ harness는 그 호출을 엣지로 읽고 다음 페이즈를 시작합니다. �
 
 - **라우터 역할을 하는 모델.** 라우팅을 모델에 맡기면 token을 태우고, 지연이 늘고, 실행마다 달라집니다. 맨 앞에서 한 번 잘못 라우팅하면 그 뒤가 전부 어긋납니다.
   완화: 전이는 코드로 평가하고, 모델 호출은 판단이 필요한 노드에만 남깁니다.
+- **확률을 증거로 읽음.** 타입이 정해진 답은 언제나 형식이 올바르므로, 틀렸을 때에도 이미 정해진 답처럼 읽힙니다.
+  완화: 보류 구간을 남겨 두고, 이 층은 분기를 없애기만 하게 하고 새로 열어 주지는 못하게 합니다.
+- **agent가 써 넣을 수 있는 근거.** 타입이 정해진 엣지에 건네는 상태에는 모델 자신의 출력이 들어 있습니다. 그래서 실행이 스스로를 변호해 자기 게이트를 통과할 수 있습니다.
+  완화: 그 상태는 harness가 소유한 필드로만 만들고, 이 층은 보안 경계가 아니라 라우터로 다룹니다.
+- **한 번 정하고 마는 임계값.** 모델 버전 하나와 트래픽 구성 하나에 맞춰 놓은 상수 둘을, 그 둘이 바뀌는 동안에도 그대로 둡니다.
+  완화: 결정을 실행에 반영하지 않고 로그로만 남기고, 그 로그로 다시 맞추고, 질문 텍스트를 임계값과 함께 버전 관리합니다(섹션 23).
 - **과도한 그래프화.** 탐색이 필요했던 task에 고정된 그래프를 씌우면 해답에 필요한 경로가 막힙니다.
   완화: 어차피 강제했을 구조만 코드로 적고, 열린 작업은 평범한 loop에 맡깁니다.
 - **실패 엣지 없음.** FAIL을 보낼 곳이 없는 검사 노드는 나쁜 출력을 그대로 아래로 흘려보냅니다.
@@ -182,9 +230,13 @@ harness는 그 호출을 엣지로 읽고 다음 페이즈를 시작합니다. �
 [`src/`](src/)는 21을 이어받고 다음을 추가합니다:
 
 - [`graph.py`](src/graph.py): `run_graph`(노드의 dispatch 맵, 고정 엣지와 조건 엣지, 이어지는 상태, 단계 예산)와 안쪽 loop를 노드로 장착한 `agent_node`.
-- [`test.py`](src/test.py): 체인 순서와 상태 병합, 코드만으로 하는 라우팅, 예산에서 멈추는 순환, agent 노드를 방문할 때마다 새로 만드는 `messages[]`에 대한 오프라인 검사.
-- [`demo.py`](src/demo.py): 라우팅되는 실행 하나. 코드 노드가 분류하고, 코드로 된 엣지가 라우팅하고, agent 노드가 답하고,
+- [`decide.py`](src/decide.py): `route`(임계값 둘과 그 사이의 보류 구간), `decision_edge`, 오프라인 실행용으로 녹화해 둔 asker, 그리고 표준 라이브러리 http로 실제 호출하는 asker.
+- [`test.py`](src/test.py): 체인 순서와 상태 병합, 코드만으로 하는 라우팅, 예산에서 멈추는 순환, agent 노드를 방문할 때마다 새로 만드는 `messages[]`,
+  세 갈래로 갈라지는 구간, 위험하다고 라벨이 붙은 입력에는 `allow`가 나오지 않는 것, 답이 없으면 `ask`로 떨어지는 것, 판정의 단조성,
+  그리고 사람을 부르는 횟수 예산에 대한 오프라인 검사.
+- [`demo.py`](src/demo.py): 라우팅되는 실행 하나. 코드 노드가 분류하고, 타입이 정해진 엣지가 게이트를 걸고, agent 노드가 답하고,
   섹션 21의 검사기가 채점하고, 실패한 판정은 피드백과 함께 되돌아갑니다.
+  `TYPESAFE_API_KEY`가 설정되어 있지 않으면 게이트는 녹화된 답을 읽으므로, demo에는 여전히 Anthropic 키 하나만 있으면 됩니다.
 
 loop는 바뀌지 않습니다. 그것이 언제 실행될지는 그래프가 정합니다.
 
@@ -206,6 +258,11 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness), `dsh-v0.1.0-rc.7` 기준:
   `docs/subsystems/workflow.md`, `packages/workflow/tool-workflow/README.md`: 실행마다 모델이 쓰는 스크립트이고, 지속되는 그래프는 없습니다.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`와 `run/benchmarks/swebench.py`의 실행 loop와 예산.
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md): 요청 계약(상태 하나와 타입이 정해진 질문 맵)과 답의 형태(선택지마다 확률 하나, 그리고 confidence).
+  적대적 상태와 context rot에 대해서는 [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13),
+  범위를 긋는 문장에 대해서는 [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one):
+  agent를 위한 모델이 아니라 소프트웨어를 위한 모델이며, 자기 다음 행동을 스스로 고르지 않습니다.
+  제품 페이지의 지연 시간과 가격 주장은 공급사가 직접 돌린 것이고 재현되지 않았으므로, 이 섹션은 숫자가 아니라 계약과 한계를 인용합니다.
 - [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰, 多 Agent 协作. 중국어 원문이 기준):
   하나의 trajectory 위에서 이루어지는 다단계 역할 전환. 페이즈마다 system prompt와 tool 집합, tool 호출로 만드는 페이즈 게이트, 그리고 구현으로 되돌아가는 검토 라우팅.
   근거는 책 자체의 실험뿐입니다. 같은 장은 "collaboration topology"와 "orchestration"을 주된 용어로 유지합니다.

@@ -20,6 +20,11 @@ metrics (illegal calls, steps) and a zero-tolerance veto. Repeats split one
 verdict into Pass@k (can it) and Pass^k (does it every time), and the binomial
 standard error gives the band under which a gap between two builds is noise.
 
+A pass rate does not cover a harness that routes on a probability (section
+22). brier() and ece() score the numbers themselves, and sweep() scores a
+threshold pair against a labelled log, which is how the constants in
+decide.route get picked instead of guessed.
+
 Mirrors the five elements and the metric dictionary from the book chapter 6,
 plus tau-bench's simulated user and end-state comparison: any trajectory that
 reaches the target state passes.
@@ -29,6 +34,8 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from math import sqrt
+
+from decide import route
 
 
 @dataclass
@@ -139,3 +146,51 @@ def paired(before: dict, after: dict) -> dict:
     a = {t["task"]: t["pass_hat_k"] for t in after["per_task"]}
     return {"fixed": [k for k in b if not b[k] and a.get(k)],
             "broke": [k for k in b if b[k] and not a.get(k)]}
+
+
+def brier(log) -> float:
+    """Mean squared error of the probabilities themselves, on (p, happened) rows.
+
+    0 is perfect. It falls for being wrong and for being confidently wrong,
+    so it catches what a pass rate cannot: a router that picks the right
+    branch on this sample while its numbers mean nothing."""
+    return sum((int(y) - p) ** 2 for p, y in log) / (len(log) or 1)
+
+
+def ece(log, bins: int = 3) -> float:
+    """Expected calibration error: bin by p, compare each bin's claim to its rate.
+
+    Calibration is a property of a group of predictions, never of one answer.
+    A 0.9 that is right 90 percent of the time is calibrated. A 0.9 that is
+    right every time is under confident, which is the safe direction here."""
+    n = len(log) or 1
+    total = 0.0
+    for b in range(bins):
+        rows = [(p, y) for p, y in log if b / bins <= p < (b + 1) / bins
+                or (b == bins - 1 and p == 1.0)]
+        if not rows:
+            continue
+        claimed = sum(p for p, _ in rows) / len(rows)
+        actual = sum(int(y) for _, y in rows) / len(rows)
+        total += len(rows) / n * abs(actual - claimed)
+    return total
+
+
+def sweep(log, grid, conf_floor: float = 0.45) -> list:
+    """Score every threshold pair on the grid against a labelled decision log.
+
+    log rows are (p, confidence, harmful). Coverage is the share the gate
+    settled without asking. The two error counts are not interchangeable: a
+    false allow runs something harmful, a false deny costs one interruption.
+    Pick the pair with no false allow and the highest coverage, then keep the
+    log, because the numbers move when the model or the traffic changes."""
+    out = []
+    for allow_below, deny_above in grid:
+        verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)
+                    for p, c, harmful in log]
+        n = len(verdicts) or 1
+        out.append({"allow_below": allow_below, "deny_above": deny_above,
+                    "coverage": sum(1 for v, _ in verdicts if v != "ask") / n,
+                    "false_allow": sum(1 for v, h in verdicts if v == "allow" and h),
+                    "false_deny": sum(1 for v, h in verdicts if v == "deny" and not h)})
+    return out

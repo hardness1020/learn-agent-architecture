@@ -59,6 +59,47 @@ so the node sees only what its prompt builder passes it, not the whole run.
 
 The scale is the budget discipline: route with code where the branch is knowable, and spend model calls only inside nodes that need judgment.
 
+### Edges: a typed decision instead of a coded rule
+
+An edge is a predicate you can write down. Some branches resist that. Is this command destructive? Is this ticket about billing?
+You know the branch belongs to the harness, but you cannot express it in code, so it goes back to the model and routing costs a full turn again.
+
+A third kind of edge sits between the two. Ask one narrow question, get a number back, and branch on the number in code:
+
+```python
+def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/decide.py
+    if p is None:
+        return "ask"                               # no layer, or the call failed
+    if conf is not None and conf < conf_floor:
+        return "ask"                               # too flat to act on either way
+    if p >= deny_above:
+        return "deny"
+    if p <= allow_below:
+        return "allow"
+    return "ask"                                   # the band: this is where a person goes
+```
+
+This does not move routing back to the model. `route` is plain code and the branch is still picked in code.
+What the call buys is one number the code could not compute on its own. Point 2 at the top of this section holds; this is the evidence under it.
+
+- **Two thresholds, not one.** A single cutoff forces a verdict on every input, including the ones the answer is worst at.
+  Two cutoffs leave a band in the middle, and that band is where the harness stops and asks a person.
+- **The layer only narrows.** It scores a branch the graph already drew. It never adds one.
+  A missing key, a timeout, or a malformed answer returns no number, which routes to `ask`, so a broken check falls back to the harness default.
+- **Confidence may only tighten.** A flat answer moves the verdict toward `ask`, never toward `allow`.
+
+Decision models are what make this cheap enough to run on every step. TypeSafe's Jev takes one state and a set of typed questions,
+and returns a probability per question plus how peaked that answer was. No text, no chain of thought, nothing to parse.
+Every question in a request is answered in one pass, so asking five things costs about what asking one costs.
+That is what buys the edge: the call is priced like code, not like a turn.
+
+Three limits come with it, and all three are the vendor's own. A typed answer is well formed, which is not the same as correct.
+Calibration is a property of a group of answers, never of the one in front of you.
+And the state is read as data, not as hostile input, so text written to steer the answer can move it.
+
+So the shape is a ladder, not a replacement. A rule for the branches you can name, a typed call for the long tail you cannot,
+a person for the band between. Section 3's permission layer is the rule tier. This is the tier under it.
+
 ### Named shapes
 
 The workflow patterns the sources name are graph shapes:
@@ -90,6 +131,7 @@ This section adds one small primitive (the edge map) and reuses the rest:
 - The worker and checker split across nodes is section 6; sibling branches isolate in section 15 worktrees.
 - The step budget and the escalation contract are section 21.
 - The trace feeds section 20's telemetry. Which edges fired tells you which branches are dead.
+- A typed edge is only as good as its two thresholds, and those are constants someone picked. Section 23 scores them against a labelled log.
 
 The runnable wires the demo graph from the diagram above:
 
@@ -160,6 +202,12 @@ How each agent decides what runs next.
 
 - **Model as router.** Routing sent to the model burns tokens, adds latency, and varies run to run. A misroute at the top misdirects everything after it.
   Mitigation: evaluate transitions in code; reserve model calls for nodes that need judgment.
+- **Probability read as proof.** A typed answer is always well formed, so it reads as settled even when it is wrong.
+  Mitigation: keep the abstain band, and let the layer remove a branch, never grant one.
+- **Evidence the agent can write.** The state handed to a typed edge carries the model's own output, so the run argues itself past its own gate.
+  Mitigation: build that state from harness-owned fields only, and treat the layer as a router, not a security boundary.
+- **Thresholds set once.** Two constants fitted to one model version and one traffic mix, then left alone while both change.
+  Mitigation: log decisions without acting on them, refit from that log, and version the question text together with the thresholds (section 23).
 - **Over-graphing.** A fixed graph on a task that needed exploration forbids the path the solution needs.
   Mitigation: encode only structure you would enforce anyway; leave open-ended work to the plain loop.
 - **No failure edge.** A checking node with nowhere to send a FAIL lets bad output flow downstream.
@@ -181,9 +229,12 @@ How each agent decides what runs next.
 [`src/`](src/) carries 21 forward and adds:
 
 - [`graph.py`](src/graph.py): `run_graph` (a dispatch map of nodes, fixed and conditional edges, threaded state, a step budget) and `agent_node`, the inner loop mounted as a node.
-- [`test.py`](src/test.py): offline checks for chain order and state merge, code-only routing, the cycle stopping at the budget, and a fresh `messages[]` per agent-node visit.
-- [`demo.py`](src/demo.py): one routed run: a code node classifies, a coded edge routes, an agent node answers,
+- [`decide.py`](src/decide.py): `route` (two thresholds and the abstain band between them), `decision_edge`, a recorded asker for offline runs, and a live one over stdlib http.
+- [`test.py`](src/test.py): offline checks for chain order and state merge, code-only routing, the cycle stopping at the budget, a fresh `messages[]` per agent-node visit,
+  the three-way band, no allow on anything labelled dangerous, a missing answer falling back to `ask`, monotonic verdicts, and an interruption budget.
+- [`demo.py`](src/demo.py): one routed run: a code node classifies, a typed edge gates, an agent node answers,
   section 21's checker grades, and a failed verdict cycles back with feedback.
+  The gate reads a recorded answer unless `TYPESAFE_API_KEY` is set, so the demo still needs only the Anthropic key.
 
 The loop is unchanged. The graph decides when it runs.
 
@@ -205,6 +256,12 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
   `docs/subsystems/workflow.md`, `packages/workflow/tool-workflow/README.md`: a model-written script per run, no persistent graph.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the run loop and budgets in `agents/default.py`, `run/benchmarks/swebench.py`.
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md): the request contract (one state, a map of typed questions)
+  and the answer shape (a probability per option plus a confidence).
+  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) for adversarial state and context rot, and
+  [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) for the scope line:
+  a model for software, not for agents, that never chooses its own next action.
+  Latency and price claims on the product pages are vendor run and unreproduced, so this section cites the contract and the limits, not the numbers.
 - [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰, 多 Agent 协作; the Chinese original is canonical):
   multi-stage role switching on one trajectory: a system prompt and a tool set per phase, phase gates as tool calls, and review routing back to implementation.
   The only evidence is the book's own experiment. The same chapter keeps "collaboration topology" and "orchestration" as its primary terms.

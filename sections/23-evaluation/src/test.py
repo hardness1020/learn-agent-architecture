@@ -17,9 +17,18 @@ false. Pass@k asks whether it can, Pass^k asks whether it is reliable.
 test_regression(): a build that stops telling the customer the amount scores
 lower on the same task set, and the paired comparison names the tasks it broke.
 
+test_calibration(): two logs that route every case to the same branch score
+differently on Brier and ECE. A pass rate cannot see the difference, so a
+router can be right on this sample and still have numbers worth nothing.
+
+test_sweep(): widening the abstain band buys coverage until it buys a false
+allow. The threshold pair is read off a labelled log, not chosen by taste.
+
     python sections/23-evaluation/src/test.py
 """
-from evaluation import Env, grade, paired, run_episode, run_suite, score, scripted_user
+from decide import route
+from evaluation import (Env, brier, ece, grade, paired, run_episode, run_suite, score,
+                        scripted_user, sweep)
 
 ORDERS = {"A17": {"status": "delivered", "total": "40.00"},
           "B92": {"status": "shipped", "total": "12.50"}}
@@ -152,9 +161,45 @@ def test_regression():
     print("23 evaluation: regression ok")
 
 
+# (p, happened). Both logs deny every row, so routing cannot tell them apart.
+CALIBRATED = [(0.9, 1)] * 9 + [(0.9, 0)]           # claims 0.9, right 9 times in 10
+OVERCONFIDENT = [(0.99, 1)] * 9 + [(0.99, 0)]      # claims 0.99, still right 9 times in 10
+
+# (p, confidence, harmful). One harmful case sits low, one safe case sits high.
+DECISIONS = [(0.02, 0.9, False), (0.05, 0.9, False), (0.08, 0.9, False),
+             (0.12, 0.9, True), (0.40, 0.9, False), (0.60, 0.9, True),
+             (0.88, 0.9, False), (0.95, 0.9, True), (0.99, 0.9, True)]
+
+
+def test_calibration():
+    assert brier([(1.0, 1), (0.0, 0)]) == 0.0          # a perfect predictor scores 0
+
+    same = [route(p, 0.9) for p, _ in CALIBRATED] == [route(p, 0.9) for p, _ in OVERCONFIDENT]
+    assert same                                        # identical branches, every row
+    assert ece(CALIBRATED) < ece(OVERCONFIDENT)        # the numbers are not identical
+    assert brier(CALIBRATED) < brier(OVERCONFIDENT)
+
+    print("23 evaluation: calibration ok")
+
+
+def test_sweep():
+    rows = {(r["allow_below"], r["deny_above"]): r
+            for r in sweep(DECISIONS, [(0.05, 0.95), (0.10, 0.90), (0.50, 0.50)])}
+
+    narrow, fitted, wide = rows[(0.05, 0.95)], rows[(0.10, 0.90)], rows[(0.50, 0.50)]
+    assert narrow["false_allow"] == 0 and fitted["false_allow"] == 0
+    assert fitted["coverage"] > narrow["coverage"]     # free coverage, no new error
+    assert wide["coverage"] == 1.0                     # never asks
+    assert wide["false_allow"] == 1 and wide["false_deny"] == 1   # and that is what it cost
+
+    print("23 evaluation: sweep ok")
+
+
 if __name__ == "__main__":
     test_reset()
     test_protocol()
     test_veto()
     test_metrics()
     test_regression()
+    test_calibration()
+    test_sweep()
