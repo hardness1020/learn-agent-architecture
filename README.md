@@ -125,7 +125,7 @@ Eight layers, from the basic loop to a harness that runs itself. Each row links 
 | 23 | [Evaluation](sections/23-evaluation/)                         | How do we know a change made it better?            | Eval environments, resets, judges, Pass^k             |
 |    | **Layer 7 · Composition**                             |                                                    |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/)             | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
-| 22 | [Graph engineering](sections/22-graph-engineering/)           | When does control flow move from the model to code? | Nodes, coded edges, cycles, agents as nodes           |
+| 22 | [Graph engineering](sections/22-graph-engineering/) | When does control flow move from the model to code? | Nodes, coded edges, cycles, agent nodes, typed decision edges |
 
 ---
 
@@ -212,6 +212,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): Nodes, edges, cycles, and agents as nodes.
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): Workflows vs agents and the five workflow shapes.
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): Routing in code and context isolation between nodes.
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md): the request contract and answer shape of a typed decision model.
+  Section 22 wires one into a graph edge in [`decide.py`](sections/22-graph-engineering/src/decide.py).
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》 by 李博杰 (Apache-2.0). Chapter 6 grounds the evaluation section.
 
 ---
