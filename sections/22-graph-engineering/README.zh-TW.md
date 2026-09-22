@@ -62,10 +62,10 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 ### Edge：把寫死的規則換成一次有型別的判斷
 
-edge 是一條你寫得出來的判斷式，但有些分支就是寫不出來。這道指令會不會造成破壞？這張工單是不是在講帳務？
-你知道這個分支該由 harness 決定，卻沒辦法用程式碼表達，結果又丟回給 model，routing 又花掉一整輪。
+有些分支條件很難寫成程式碼。這道指令會不會造成破壞？這張工單是不是在講帳務？
+這種分支還是由 harness 決定，只是要 model 幫忙挑，就得再多跑一整輪。
 
-還有第三種 edge 夾在中間：問一個很窄的問題，拿回一個數字，再用程式碼照這個數字分流。
+第三種 edge 只問一個很窄的問題。呼叫回傳一個機率，程式碼再拿這個機率挑分支：
 
 ```python
 def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/decide.py
@@ -80,26 +80,27 @@ def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/d
     return "ask"                                   # the band: this is where a person goes
 ```
 
-這不是把 routing 退回給 model。`route` 就是普通的程式碼，分支照樣由程式碼挑。
-這通呼叫買到的只有一個數字，一個程式碼自己算不出來的數字。本節開頭第 2 點還是成立的，這一段就是它底下的依據。
+`route` 仍然是用程式碼挑分支，本章開頭第 2 點要的就是這件事。
+這通呼叫提供的是一個程式碼自己算不出來的機率。
 
-- **兩個門檻，不是一個：** 只有一個切點的話，每一筆輸入都會被逼出一個結論，連最沒把握的那些也躲不掉。
-  兩個切點中間會空出一段區間，harness 就在這段區間停下來問人。
-- **這一層只會收窄：** 它評的是圖上本來就畫好的分支，不會多長出一條。
-  key 不見、timeout，或答案的格式壞掉，都拿不到數字，那就走 `ask`，所以這個檢查壞掉時會退回 harness 原本的預設。
-- **confidence 只能讓判定更緊：** 答案很平的時候，判定只會往 `ask` 靠，不會往 `allow` 靠。
+- **兩個門檻，不是一個：** 只有一個切點，連答案沒把握的時候也會被逼出一個結論。
+  兩個門檻中間留下一段不表態的區間；落在這段區間裡，harness 就停下來問人。
+- **這一層只會收窄：** 它評的是圖上已經有的分支，不會自己多開一條，也不會把本來不准的事變成准。
+  key 不見、timeout，或答案格式壞掉，都拿不到數字，那就走 `ask`，也就是檢查失敗時 harness 的預設。
+- **confidence 只能讓判定更緊：** confidence 低的時候，判定會改成 `ask`，永遠不會改成 `allow`。
 
-decision model 就是讓這件事便宜到每一步都跑得起的關鍵。TypeSafe 的 Jev 吃一份 state 和一組有型別的問題，
-每個問題回一個機率，外加這個答案有多尖。沒有文字、沒有推理過程，也沒有東西要 parse。
-一次 request 裡的問題全部在同一趟答完，所以問五件事和問一件事的成本差不多。
-edge 划得來就划在這裡：這通呼叫的定價像程式碼，不像一輪對話。
+TypeSafe 的 Jev 收一份 state 和一組有型別的問題。
+選擇題的部分，每個選項回一個機率，再加一個 confidence，表示這些機率有多集中在同一個選項上。
+同一個 request 裡的問題會在同一趟全部答完，所以問五件事和問一件事的成本差不多。
+回應裡不會有生成的文字，也沒有推理過程要 harness 去 parse。
+什麼都不用生成，這通呼叫才小到可以掛在 harness 每一步都會經過的 edge 上。換成再叫一次 model 就掛不上去。
 
-跟著來的有三個限制，而且三個都是廠商自己寫在文件裡的。答案有型別，代表它格式正確，不代表它是對的。
-calibration 講的是一群答案的性質，從來不是你眼前這一個。
-還有 state 是當成資料在讀，不是當成有敵意的輸入，所以有人把想引導答案的文字寫進去，就真的推得動它。
+廠商自己在文件裡寫了三個限制。有型別的答案代表格式正確，但它還是可能是錯的。
+calibration 講的是一群答案的性質，它證明不了眼前這一個答案對不對。
+model 把 state 當成資料讀，不會把它當成有敵意的輸入，所以有人把想引導答案的文字寫進去，答案就真的會被帶偏。
 
-所以這是一道階梯，不是誰取代誰：叫得出名字的分支用規則，叫不出名字的長尾用一次有型別的呼叫，中間那段區間交給人。
-第 3 章的 permission 層就是規則那一層，本章講的這一層在它底下。
+分支條件寫得出程式碼，就用規則；條件需要判斷，就用一次有型別的呼叫；結果落在不表態的區間，就交給人。
+第 3 章的 permission 規則照樣有效，有型別的檢查只能再縮限那些規則已經允許的事。
 
 ### 常見的圖形
 
@@ -228,12 +229,14 @@ implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用
 
 [`src/`](src/) 把 21 帶了過來，並加上：
 
-- [`graph.py`](src/graph.py)：`run_graph`（node 的 dispatch map、固定和條件式的 edge、一路傳下去的 state、step budget）和 `agent_node`，把內層 loop 掛成一個 node。
-- [`decide.py`](src/decide.py)：`route`（兩個門檻，以及中間那段不表態的區間）、`decision_edge`、離線跑時用的錄好的提問器，還有一個走 stdlib http 的線上版本。
-- [`test.py`](src/test.py)：離線檢查串接順序和 state 合併、純程式碼的 routing、cycle 撞到 budget 就停、agent node 每次經過都用全新的 `messages[]`、
-  三選一的區間、標成危險的一律不給 `allow`、拿不到答案就退回 `ask`、機率調高判定不會變鬆，以及打斷人的次數上限。
-- [`demo.py`](src/demo.py)：照著圖實際跑一趟：code node 分類、有型別的 edge 把關、agent node 作答、第 21 章的 checker 評分，沒過就帶著 feedback 繞回去。
-  沒設 `TYPESAFE_API_KEY` 的話，gate 讀的是錄好的答案，所以這個 demo 一樣只需要 Anthropic 的 key。
+- [`graph.py`](src/graph.py)：`run_graph`（node 的 dispatch map、固定和條件式的 edge、在 node 之間傳遞的 state、step budget）和 `agent_node`，把內層 loop 掛成一個 node。
+- [`decide.py`](src/decide.py)：`route` 用兩個門檻判定，中間留一段不表態的區間；`decision_edge` 把判定接到分支上。
+  離線用的提問器回傳錄好的答案，線上那個走 stdlib http。
+- [`test.py`](src/test.py)：離線檢查涵蓋串接順序、state 合併、純程式碼的 routing、cycle 撞到 budget 就停，以及 agent node 每次經過都拿到全新的 `messages[]`。
+  另外還檢查三選一的區間、標成危險的一律不給 `allow`、拿不到答案就走 `ask`、機率調高判定不會變鬆，以及打斷人的次數上限。
+- [`demo.py`](src/demo.py)：照著圖跑一趟。code node 分類，有型別的 edge 判斷能不能往下走，agent node 作答，
+  第 21 章的 checker 打分，沒過就帶著 feedback 繞回去。
+  沒設 `TYPESAFE_API_KEY` 的話，gate 讀的是錄好的答案，所以跑這個 demo 只需要 Anthropic 的 key。
 
 loop 本身完全沒改。什麼時候輪到它跑，由圖決定。
 
@@ -254,12 +257,12 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
   `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`：每次執行由模型現寫腳本，不留下任何圖。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 與 budget、`run/benchmarks/swebench.py`。
-- [TypeSafe Jev 文件](https://docs.typesafe.ai/api.md)：request 的約定（一份 state、一組有型別的問題），
-  以及答案的形狀（每個選項一個機率，外加一個 confidence）。
-  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 講的是有敵意的 state 和 context rot；
-  [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) 劃出適用範圍：
-  這是給軟體用的 model，不是給 agent 用的，它不會自己決定下一步做什麼。
-  產品頁上的延遲和價格都是廠商自己跑的，沒有第三方複現過，所以本章引的是約定和限制，不是那些數字。
+- [TypeSafe Jev 文件](https://docs.typesafe.ai/api.md)：一個 request 裡放一份 state 和一組有型別的問題，
+  選擇題的答案則是每個選項一個機率，外加一個 confidence。
+  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 寫的是有敵意的 state 和 context rot。
+  [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) 講清楚這個 model 的角色：
+  它回答軟體丟過來的問題，不是拿來當 agent 用，它不會自己決定下一步做什麼。
+  本章引的是文件寫明的約定和限制；廠商跑出來的延遲和價格結果，這裡並沒有獨立複現過。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版為準）：
   在同一條 trajectory 上做多階段角色轉換：每個 phase 一份 system prompt 和一套 tool，phase 之間用 tool call 當關卡，review 可以繞回實作。
   這個做法的證據只有書裡自己做的實驗。同一章主要用的詞是「collaboration topology」和「orchestration」。

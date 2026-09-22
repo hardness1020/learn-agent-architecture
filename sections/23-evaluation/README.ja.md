@@ -144,19 +144,19 @@ agent と同じモデルファミリーの判定器は死角も共有するの�
 
 ### 確率で決まる gate を採点する
 
-セクション 22 は、確率でルーティングするエッジを足しました。合格率ではこれを採点できません。
-実行は正しい枝に入ったか入らなかったかのどちらかなので、たまたまこのサンプルをうまく当てただけの router と、数字に意味がある router が同じに見えてしまいます。
+セクション 22 は、確率でルーティングするエッジを足しました。合格率だけでは、これを評価できません。
+合格率が数えるのは、正しい枝に入った回数です。確率そのものが当てになるのか、たまたまこのサンプルでうまく当てただけなのかは、そこからは分かりません。
 
-測るものは 3 つあり、それぞれ違う不具合を捕まえます。
+測るものは 3 つです。それぞれ捕まえる誤りの種類が違います。
 
-- **判定。** しきい値を固定し、ラベル付きのログを再生し、2 種類の誤りを別々に数えます。
-  誤った allow は害のあることを実行してしまいます。誤った deny は中断 1 回分のコストで済みます。この 2 つは取り替えがきかないので、
-  正解率という 1 つの数字は、こちらが気にしている方を隠してしまいます。
-- **数字。** Brier score は、確率そのものの平均二乗誤差です。
-  ECE (expected calibration error) は予測を区間に分け、各区間が主張した確率と、その区間が実際に当たった割合を比べます。
-  0.9 と言って 10 回に 9 回当たるなら較正が取れています。0.9 と言って毎回当たるなら自信を低く見積もりすぎですが、gate にとっては安全な側への外れ方です。
-- **coverage。** gate が誰にも尋ねずに決着させた割合です。2 つのしきい値を互いに近づけると帯が狭まり、coverage は上がります。
-  ただし最後まで上げようとすると、誤った allow と引き換えになります。
+- **判定。** しきい値を固定したまま、ラベル付きのログを再生します。誤った allow と誤った deny は、別々に数えます。
+  誤った allow は、害のあるものを実際に実行してしまいます。誤った deny のコストは、中断 1 回分です。この 2 つは取り替えがききません。
+  正解率という 1 つの数字は、その違いを覆い隠します。
+- **数字。** Brier score は、確率と実際に起きた結果とのずれを平均二乗誤差で測ります。
+  ECE (expected calibration error) は予測を区間ごとにまとめ、区間が示した確率と、その区間で実際に起きた頻度とを比べます。
+  0.9 と予測したものが 10 回に 9 回起きていれば、calibration は取れています。毎回起きているなら自信を低く見すぎですが、この gate にとっては安全な側の外れ方です。
+- **coverage。** gate が人に尋ねずに自分で決めた判断の割合です。2 つのしきい値を近づけると、判断を保留する帯が狭まります。
+  coverage はそれで上がりますが、最後のひと押しは誤った allow と引き換えになります。
 
 ```python
 verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
@@ -166,12 +166,12 @@ verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/
 "false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
 ```
 
-定数はスイートからではなくトラフィックから決まります。判断をすべてログに残しつつ何もブロックしない状態で gate を動かし、そのログにラベルを付け、
-それからしきい値の格子を掃いて、誤った allow を 1 件も出さない組のうち coverage がいちばん高いものを取ります。
+しきい値はトラフィックのログから決めます。何もブロックしない状態で gate を動かし、判断をすべてログに残します。そのログにラベルを付けたら、しきい値の組を格子状に総当たりします。
+そのログで誤った allow が 1 件も出ない組のうち、coverage がいちばん高いものを選びます。
 
-この分担が誠実なところです。オフラインのテストは仕組みを固定します。確率を上げても判定が緩むことはなく、答えがなければ尋ねる側に落ちます。
-ログは定数を固定します。テストは、もともと出来の悪かった記録済みの確率の上でも通ってしまうので、どちらか片方だけでは証拠になりません。
-モデルのバージョンかトラフィックの構成が変わったら、掃き直してください。どちらも数字を動かしますし、どちらも自分からは知らせてくれません。
+オフラインのテストが確かめるのは仕組みです。確率を上げても判定が緩まないこと、答えがなければ `ask` に落ちること。この 2 つを押さえます。
+しきい値を確かめるのはラベル付きのログです。記録済みの確率がもともと当てにならなくても、テストは通ってしまいます。どちらか片方だけでは足りません。
+モデルのバージョンかトラフィックの構成が変わったら、もう一度総当たりしてください。どちらも確率を動かしますし、変わったことをそれと分かる形では知らせてくれません。
 
 ### スコアの意味を決めるのはデータセット
 
@@ -273,13 +273,13 @@ AB テストでは、動かした機構のメトリクス (計画の長さ、pro
 
 [`src/`](src/) は 22 を引き継ぎ、次を追加します。
 
-- [`evaluation.py`](src/evaluation.py): `reset` と記録付き tool インターフェースを持つ環境、1 turn につき 1 つの事実を出すシミュレートされた user、エピソードの protocol、
-  採点 (状態の検査、何を伝えたか、veto)、Pass@k と Pass^k、二項分布のノイズ幅、2 つのビルドの対比較、
-  そしてセクション 22 が足した確率のエッジのための `brier`、`ece`、`sweep`。
-- [`test.py`](src/test.py): 状態を復元する reset、agent が注文番号を尋ねなければならない protocol の実行、
-  結果の検査が合格した実行を安全性の veto が落とすこと、不安定なビルドでの Pass@k と Pass^k の対比、
-  退化したビルドが対比較で低いスコアになり、何が壊れたかを名指しすること、
-  ルーティングは同じなのに Brier と ECE のスコアは違う 2 つのログ、そして coverage を最後まで上げると誤った allow が出てしまうしきい値の掃き出しのオフライン検査。
+- [`evaluation.py`](src/evaluation.py): `reset` と記録付きの tool インターフェースを持つ環境、1 turn に 1 つずつ事実を出すシミュレートされた user、エピソードの protocol、
+  採点 (状態の検査、何を伝えたか、veto)、Pass@k と Pass^k、二項分布のノイズ幅、2 つのビルドの対比較。
+  さらに、セクション 22 の確率で決まるエッジを採点するための `brier`、`ece`、`sweep` も足します。
+- [`test.py`](src/test.py): オフライン検査が見るのは、状態を復元する reset、agent が注文番号を尋ねないと進まない protocol の実行、
+  結果の検査に通った実行を安全性の veto が落とすこと、不安定なビルドでの Pass@k と Pass^k の違い、
+  退化したビルドのスコアが下がり、対比較がどこで失敗したかを指すことです。
+  さらに、ルーティングは同じなのに Brier と ECE のスコアが違う 2 つのログも見ます。しきい値の総当たりでは、coverage の最後のひと押しが誤った allow と引き換えになることを確かめます。
 - [`demo.py`](src/demo.py): 採点されるエピソードを 1 つ。モデルがサポート担当を演じ、その tool call が環境に届き、
   harness がそれが残した状態を採点します。
 
@@ -310,11 +310,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   新たに通るようになるべきテストと、通り続けるべきテストで採点されます。
 - [GAIA](https://arxiv.org/abs/2311.12983): 466 問。うち 300 問は答えを非公開にして、リーダーボードをスクレイプできないようにしています。
 - [BIG-bench](https://github.com/google/BIG-bench): benchmark のタスクを web スクレイプの学習データから守るために、各タスクファイルに入れる canary 文字列。
-- [Chow 1970](https://ieeexplore.ieee.org/document/1054406): 棄却オプション。誤り率と、答えるのをやめる割合とのあいだのトレードオフ。
-- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500) (Geifman、El-Yaniv): coverage、選択的リスク、そして risk-coverage 曲線。
-- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml): 確率予測に対する二乗誤差のスコア。
-- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599) (Guo ほか): ECE (expected calibration error) と reliability diagram、
-  そして正解率と較正は別々に動くという発見。
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406): 棄却オプションが、誤りを減らす代わりに答えないケースを増やすという取引。
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500) (Geifman、El-Yaniv): risk-coverage 曲線の上で、coverage と選択的リスクがどう結び付くか。
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml): 二乗誤差で確率予測を採点すること。
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599) (Guo ほか): ECE (expected calibration error) の測り方と、reliability diagram の描き方。
+  正解率と calibration は別々に動きうること。
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): 必須の事実、必須の推論ステップ、そして減点されるべき落とし穴を名指しするチェックリスト形式の rubric。
 - [Claude Code](https://code.claude.com/docs): workflow 契約におけるレビュー段階と判定段階。ソースのバックアップではなく、tool スキーマと文書化された挙動から。
   評価スイートはソースに存在しないので、それらのセルは再構成と印を付けています。

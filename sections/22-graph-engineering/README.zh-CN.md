@@ -62,10 +62,10 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 ### Edge：用一次带类型的判断，取代写死的规则
 
-edge 就是一个你写得出来的判断式。但有些分支写不出来。这条命令有没有破坏性？这张工单是不是在讲账单？
-你知道这个分支本来就该归 harness 管，但它就是写不成代码，于是只好再丢回去问 model，routing 又花掉一整轮。
+有些分支的条件，用代码写不出来。这条命令有没有破坏性？这张工单是不是在讲账单？
+分支本身还是 harness 说了算，但让 model 来选，就得多跑一整轮。
 
-还有第三种 edge，夹在这两者中间：问一个很窄的问题，拿回一个数字，再用代码照这个数字分流：
+第三种 edge 只问一件很具体的事。调用返回一个概率，代码拿这个概率去选分支：
 
 ```python
 def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/decide.py
@@ -80,26 +80,27 @@ def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/d
     return "ask"                                   # the band: this is where a person goes
 ```
 
-这并不是把 routing 又丢回给 model。`route` 就是一段普通代码，分支还是在代码里选的。
-这次调用买到的只有一个数字，一个代码自己算不出来的数字。本章开头第 2 点照样成立，这里只是替它补上底下的依据。
+分支仍然是 `route` 这段代码选的，本章开头第 2 点要的就是这件事。
+调用只负责补上一个概率，这个数字代码自己算不出来。
 
-- **两个阈值，不是一个：** 只画一条线的话，每一笔输入都被逼着给出结论，连它答得最差的那些也一样。
-  画两条线，中间就留下一段区间；落在这段区间里，harness 就停下来问人。
-- **这一层只会收窄：** 它只是替图上已经画好的分支打个分，从来不会多画一条出来。
-  key 没设、调用超时，或回来的答案格式不对，就等于没有数字，一律走 `ask`；所以这层坏掉的时候，会退回 harness 原本的默认行为。
-- **confidence 只能把判定收紧：** 答案越平，判定就越往 `ask` 靠，绝不会往 `allow` 靠。
+- **阈值要设两个：** 只设一条线，答案再不确定也得给出结论。
+  设两条线，中间就空出一段弃权区间；落进这段区间，harness 就停下来问人。
+- **这一层只会收窄：** 它替已经存在的分支打分，不会多开一条，也不会放行一条。
+  key 没设、调用超时、答案格式不对，都等于没有数字，于是走 `ask`，也就是检查失效时 harness 的默认做法。
+- **confidence 只能把判定收紧：** confidence 低，判定就改成 `ask`，永远不可能改成 `allow`。
 
-这件事之所以便宜到每一步都跑得起，靠的是 decision model。TypeSafe 的 Jev 吃一份 state 和一组带类型的问题，
-每个问题返回一个概率，外加这个答案有多集中。没有文字、没有 chain of thought，也没有东西要解析。
-一次请求里的所有问题都在同一个 pass 里答完，所以问五件事的成本，跟问一件事差不多。
-这条 edge 就是这样换来的：这次调用的价钱像在跑代码，不像跑完一整轮对话。
+TypeSafe 的 Jev 接收一份 state 和一组带类型的问题。
+选择题的答案里，每个选项各有一个概率；另外附一个 confidence，表示这些概率有多集中在某一个选项上。
+一次请求里的问题都在同一个 pass 里答完，所以问五件事和问一件事的成本差不多。
+返回的内容里没有生成的文字，也没有 chain of thought 要 harness 去解析。
+什么都不生成，这次调用就小到可以挂在 harness 每一步都会走过的 edge 上；换成一次完整的 model 调用，就挂不上去了。
 
-跟着来的有三个限制，而且三个都是厂商自己写在文件里的。带类型的答案只保证格式工整，格式工整不等于答案是对的。
-calibration 讲的是一整批答案的性质，从来不是你眼前这一个答案的性质。
-还有，state 是当成数据读进去的，不是当成有敌意的输入，所以有人特意写一段文字去带风向，是真的带得动。
+厂商自己的文件写了三个限制。带类型的答案保证格式工整，但它照样可能是错的。
+calibration 说的是一整批答案，它证明不了眼前这一个答案是对的。
+model 是把 state 当数据读的，不会把它当成有敌意的输入，所以有人写一段文字来带风向，答案真的会被带走。
 
-所以整个形状是一层叠一层，不是谁取代谁：讲得出条件的分支写成规则，讲不出来的长尾交给一次带类型的调用，中间那段区间交给人。
-第 3 章的 permission 层就是规则那一层，本章讲的是它下面那一层。
+条件写得成代码，就用规则；条件需要判断，就问一次带类型的问题；结果落在弃权区间里，就交给人。
+第 3 章的 permission 规则照样有效。带类型的检查只能在这些规则允许的范围里再收紧，不能反过来放宽。
 
 ### 常见的图形
 
@@ -229,11 +230,13 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 [`src/`](src/) 把 21 带了过来，并加上：
 
 - [`graph.py`](src/graph.py)：`run_graph`（node 的 dispatch map、固定和条件式的 edge、一路传下去的 state、step budget）和 `agent_node`，把内层 loop 挂成一个 node。
-- [`decide.py`](src/decide.py)：`route`（两个阈值，中间留一段弃权区间）、`decision_edge`、离线执行用的录好的 asker，以及一个走标准库 http 的实时版本。
-- [`test.py`](src/test.py)：离线检查串接顺序和 state 合并、纯代码的 routing、cycle 撞到 budget 就停、agent node 每次经过都用全新的 `messages[]`、
-  三路分流的那段区间、标成危险的一律不准 allow、答案没拿到就退回 `ask`、判定的单调性，以及打扰人的次数上限。
-- [`demo.py`](src/demo.py)：照着图实际跑一次：code node 分类、带类型的 edge 把关、agent node 作答、第 21 章的 checker 评分，没过就带着 feedback 绕回去。
-  没设 `TYPESAFE_API_KEY` 的话，这个关卡读的是录好的答案，所以 demo 还是只需要 Anthropic 的 key。
+- [`decide.py`](src/decide.py)：`route` 用两个阈值判定，中间留一段弃权区间；`decision_edge` 把判定接到分支上。
+  离线用的 asker 返回录好的答案，实时的那个走标准库 http。
+- [`test.py`](src/test.py)：离线检查涵盖串接顺序、state 合并、纯代码的 routing、cycle 的 budget，以及 agent node 每次经过都拿到全新的 `messages[]`。
+  另外还检查三路分流的那段区间、标成危险的输入一律不给 allow、答案没拿到就走 `ask`、判定的单调性，还有打扰人的次数上限。
+- [`demo.py`](src/demo.py)：照着图跑一次。code node 先分类，带类型的 edge 判断能不能往下走，agent node 作答，
+  第 21 章的 checker 打分，判定没过就带着 feedback 绕回去。
+  没设 `TYPESAFE_API_KEY` 时，这个关卡读的是录好的答案。跑 demo 只需要 Anthropic 的 key。
 
 loop 本身完全没改。什么时候轮到它跑，由图决定。
 
@@ -254,9 +257,9 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
   `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`：每次执行由模型现写脚本，不留下任何图。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 与 budget、`run/benchmarks/swebench.py`。
-- [TypeSafe Jev 文件](https://docs.typesafe.ai/api.md)：请求的约定（一份 state、一组带类型的问题），
-  以及答案的形状（每个选项一个概率，外加一个 confidence）。
-  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 讲有敌意的 state 和 context rot；
+- [TypeSafe Jev 文件](https://docs.typesafe.ai/api.md)：请求里放的是一份 state 和一组带类型的问题；
+  选择题的答案里，每个选项一个概率，另外附一个 confidence。
+  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 讲有敌意的 state 和 context rot。
   [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) 讲它的定位：
   这是给软件用的 model，不是给 agent 用的，它永远不会自己决定下一步做什么。
   产品页上写的延迟和价格是厂商自己跑出来的，没有人复现过，所以本章引用的是它的约定和限制，不是那些数字。

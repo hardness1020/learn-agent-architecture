@@ -141,18 +141,19 @@ def grade(task, run):                                  # src/evaluation.py
 
 ### 带概率的关卡怎么评
 
-第 22 章加了一条靠概率选路的 edge。pass rate 评不了它。
-一次执行要么走对分支、要么走错，所以在这批样本上刚好猜得准的 router，跟数字真的有意义的 router，看起来一模一样。
+第 22 章加了一条靠概率选路的 edge。光看 pass rate 评不出它好不好。
+pass rate 数的是分支走对了几次，它看不出那些概率可不可靠，也分不出 router 是不是刚好在这批样本上猜得准。
 
-要量的有三样，各自抓的是不同的毛病。
+要量三样东西，各自抓的是不同的毛病。
 
-- **判定：** 阈值固定住，拿标注过的日志重放一遍，两种错分开数。
-  一次 false allow 会真的做出有害的事；一次 false deny 只是多打扰人一次。这两种错不能当成同一回事，
-  所以只报一个准确率，等于把你真正在意的那一种藏起来。
-- **数字本身：** Brier score 算的是这些概率自己的均方误差。
-  expected calibration error（ECE）把预测分进一个个区间，再比对每个区间宣称的概率和它实际答对的比例。
-  说 0.9、十次里对九次，就是 calibrated；说 0.9、每次都对，是把自己讲低了，而对一个 gate 来说，讲低是偏安全的那一边。
-- **coverage：** 这个 gate 不用问人就自己拍板的比例。两个阈值往中间靠，区间就窄下来，coverage 跟着上去；收到最后，多出来的那一点 coverage 得拿一次 false allow 来换。
+- **判定：** 阈值固定住，拿标注过的日志重放一遍，false allow 和 false deny 分开数。
+  一次 false allow 会真的做出有害的事，一次 false deny 只是多打扰人一次。这两种错不能当成同一回事，
+  只报一个准确率，就把它们的差别盖掉了。
+- **数字本身：** Brier score 量的是概率和实际结果之间的均方误差。
+  expected calibration error（ECE）把预测分进一个个区间，再拿每个区间宣称的概率，去比它实际发生的比例。
+  说 0.9、十次里真的发生九次，就是 calibrated；说 0.9 却每次都发生，是把自己讲低了；对这个 gate 来说，讲低反而安全。
+- **coverage：** 这个 gate 不用问人就自己拍板的比例。两个阈值往中间靠，弃权区间就窄下来，
+  coverage 一路往上，直到最后多出来的那一点得拿一次 false allow 来换。
 
 ```python
 verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
@@ -162,12 +163,12 @@ verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/
 "false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
 ```
 
-这些常数是从真实流量里配出来的，不是从这套评估里配出来的。先让 gate 跑起来，每个判定都记下来但什么都不挡，
-把这份日志标好，再把阈值的组合整个扫一遍，取 coverage 最高、而且一次 false allow 都不会放进来的那一组阈值。
+阈值要从真实流量的日志里挑。先让 gate 跑起来，什么都不挡，每个判定都记下来。把日志标好，再把阈值的组合整个扫一遍，
+挑 coverage 最高、而且在这份日志里一次 false allow 都没有的那一组。
 
-分成两边看，才算老实。离线测试钉住的是机制：概率调高，判定绝不会变松；答案没拿到，就退回去问人。
-日志钉住的是那两个常数。录下来的那些概率本来就可能很烂，测试照样会过，所以两边单独拿出来都不算证据。
-model 换了版本，或流量配比变了，就把扫描重跑一次，因为这两件事都会让数字跑掉，而且都不会主动通知你。
+离线测试查的是机制：概率调高，判定绝不能变松；答案没拿到，必须返回 `ask`。
+标注过的日志查的是阈值。录下来的那些概率本身可能很不可靠，测试照样会过，所以两边单独拿出来都不够。
+model 换了版本，或流量配比变了，就把扫描重跑一次。这两件事都会让概率跑掉，而且都不会明显地通知你。
 
 ### dataset 决定分数代表什么
 
@@ -273,9 +274,9 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
   打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带、两份 build 的配对比较，
   以及替第 22 章那条带概率的 edge 准备的 `brier`、`ece` 和 `sweep`。
 - [`test.py`](src/test.py)：离线检查 reset 有没有把 state 还原、protocol 跑一次时 agent 必须先问订单编号、
-  结果检查明明有过却被否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别、
-  退步的 build 分数更低且配对比较能指出它弄坏了哪几题、
-  两份日志选路完全一样、Brier 和 ECE 却打出不同的分数，以及扫描阈值时最后那一点 coverage 得拿一次 false allow 来换。
+  结果检查明明有过却被安全否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别，
+  以及退步的 build 分数更低、配对比较能指出坏在哪几题。
+  还会检查两份日志选路完全一样、Brier 和 ECE 却打出不同分数；扫描阈值时，最后多出来的那一点 coverage 得拿一次 false allow 来换。
 - [`demo.py`](src/demo.py)：实际跑一次并打分。
   model 扮演客服 agent，它调用的 tool 都打在环境上，最后 harness 看它留下的 state 给分。
 
@@ -306,11 +307,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   打分方式是原本失败的测试要变成通过，本来就会过的测试不能坏。
 - [GAIA](https://arxiv.org/abs/2311.12983)：466 题，其中 300 题的答案不公开，排行榜就抓不走。
 - [BIG-bench](https://github.com/google/BIG-bench)：每个任务文件都带 canary 字符串，避免题目被爬进训练数据。
-- [Chow 1970](https://ieeexplore.ieee.org/document/1054406)：reject option，以及错误率和「有多少题你选择不答」之间的取舍。
-- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500)（Geifman and El-Yaniv）：coverage、selective risk，以及 risk-coverage 曲线。
-- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml)：给概率预报用的平方误差分数。
-- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599)（Guo et al.）：expected calibration error 和 reliability diagram，
-  以及准确率和 calibration 会各走各的这个结论。
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406)：reject option 怎么用「多留几题不答」换来「少错几题」。
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500)（Geifman and El-Yaniv）：在 risk-coverage 曲线上，coverage 和 selective risk 是什么关系。
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml)：用平方误差替概率预报打分。
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599)（Guo et al.）：怎么量 expected calibration error，怎么画 reliability diagram。
+  准确率和 calibration 会各走各的。
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746)（Scale AI）：列表式的 rubric，写明要提到哪些事实、
   要有哪些推理步骤，以及哪些常见错误必须扣分。
 - [Claude Code](https://code.claude.com/docs)：workflow 约定里的 reviewer 与 judge 阶段。
