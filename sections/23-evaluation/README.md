@@ -144,19 +144,19 @@ Calibrate the judge against a human-labeled gold set before trusting it at scale
 
 ### Scoring a probabilistic gate
 
-Section 22 added an edge that routes on a probability. A pass rate cannot grade it.
-The run either took the right branch or it did not, so a router that guesses well on this sample looks identical to one whose numbers mean something.
+Section 22 added an edge that routes on a probability. A pass rate alone cannot evaluate it.
+It counts correct branches. It cannot tell whether the probabilities are reliable or the router just guessed well on this sample.
 
-Three things get measured, and they catch different bugs.
+Measure three things to check different kinds of error.
 
-- **The verdicts.** Fix the thresholds, replay a labelled log, and count the two errors separately.
-  A false allow runs something harmful. A false deny costs one interruption. They are not interchangeable,
-  so a single accuracy number hides whichever one you care about.
-- **The numbers.** A Brier score is the mean squared error of the probabilities themselves.
-  An expected calibration error bins the predictions and compares what each bin claimed against how often that bin was right.
-  A 0.9 that is right nine times in ten is calibrated. A 0.9 that is right every time is under confident, which is the safe direction for a gate.
-- **The coverage.** The share the gate settled without asking anyone. Moving the two thresholds toward each other narrows the band and raises coverage,
-  until the last of it costs a false allow.
+- **The verdicts.** Hold the thresholds fixed and replay a labelled log. Count false allows and false denies separately.
+  A false allow runs something harmful. A false deny costs one interruption. These errors are not interchangeable.
+  A single accuracy score hides that difference.
+- **The numbers.** The Brier score measures the mean squared error between probabilities and observed outcomes.
+  Expected calibration error groups predictions into bins. It compares each bin's predicted probability with its observed frequency.
+  Predictions of 0.9 are calibrated when the outcome occurs nine times in ten. If it always occurs, they are underconfident, the safe direction for this gate.
+- **The coverage.** This is the share of decisions the gate makes without asking a person. Moving the thresholds closer narrows the abstain band.
+  Coverage rises until the last increase costs a false allow.
 
 ```python
 verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
@@ -166,12 +166,12 @@ verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/
 "false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
 ```
 
-The constants come from traffic, not from the suite. Run the gate with every decision logged and nothing blocked, label that log, then sweep the grid
-and take the pair with the highest coverage that still admits no false allow.
+Choose thresholds from traffic logs. Run the gate without blocking anything and log every decision. Label the log, then sweep a grid of threshold pairs.
+Select the pair with the highest coverage and no false allows in that log.
 
-That split is the honest part. The offline test pins the mechanism: raising the probability never loosens the verdict, and a missing answer falls back to asking.
-The log pins the constants. A test can pass on recorded probabilities that were never any good, so neither one alone is evidence.
-Rerun the sweep when the model version or the traffic mix changes, because both move the numbers and neither announces it.
+Offline tests check the mechanism. Raising the probability must never loosen the verdict. A missing answer must return `ask`.
+The labelled log checks the thresholds. Tests can pass with unreliable recorded probabilities. Neither check is sufficient on its own.
+Rerun the sweep when the model version or traffic mix changes. Either can change the probabilities without an obvious warning.
 
 ### The dataset decides what the score means
 
@@ -259,9 +259,9 @@ How each system builds the test bed a score comes from.
   Mitigation: judges from different families, order swapped and graded twice, calibrated against a human-labeled gold set.
 - **Reward hacking.** The agent finds a route to the score that skips the work: keyword stuffing, flattering the judge, refusing hard cases.
   Mitigation: veto items in the rubric, process metrics beside outcome metrics, and periodic human spot checks.
-- **Calibration read as accuracy.** A gate whose probabilities are well calibrated can still be wrong on the case in front of you,
-  and one that routes this sample perfectly can be badly calibrated. Neither number substitutes for the other.
-  Mitigation: score the verdicts and the probabilities separately, and keep the false allows apart from the false denies.
+- **Calibration read as accuracy.** A calibrated gate can still return the wrong verdict on an individual case.
+  A gate that routes every case in a sample correctly can still be poorly calibrated. Neither metric replaces the other.
+  Mitigation: score verdicts and probabilities separately. Count false allows and false denies separately too.
 - **A suite that cannot see the change.** A 2 point improvement on 40 tasks is unmeasurable, so every round reads as inconclusive.
   Mitigation: grow the task set before iterating further.
 - **State leaking between runs.** No reset, or a shallow one, so one task's writes decide the next task's score.
@@ -274,12 +274,12 @@ How each system builds the test bed a score comes from.
 [`src/`](src/) carries 22 forward and adds:
 
 - [`evaluation.py`](src/evaluation.py): the environment with `reset` and a logged tool interface, a simulated user that releases one fact per turn, the episode protocol,
-  grading (state checks, what was said, veto), Pass@k and Pass^k, the binomial noise band, a paired comparison of two builds,
-  and `brier`, `ece`, and `sweep` for the probabilistic edge section 22 added.
+  grading (state checks, what was said, veto), Pass@k and Pass^k, the binomial noise band, and a paired comparison of two builds.
+  It also adds `brier`, `ece`, and `sweep` to score section 22's probabilistic edge.
 - [`test.py`](src/test.py): offline checks for reset restoring state, a protocol run where the agent has to ask for the order number,
   a safety veto failing a run whose outcome check passed, Pass@k against Pass^k on a flaky build,
-  a regressed build scoring lower with the paired comparison naming what it broke,
-  two logs that route identically while scoring differently on Brier and ECE, and a threshold sweep where the last of the coverage costs a false allow.
+  and a regressed build scoring lower with the paired comparison identifying the failures.
+  They also check two logs with identical routes but different Brier and ECE scores. A threshold sweep checks that the last coverage increase costs a false allow.
 - [`demo.py`](src/demo.py): one graded episode. The model plays the support agent, its tool calls land in the environment,
   and the harness scores the state it left behind.
 
@@ -310,11 +310,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   graded by tests that must newly pass plus tests that must keep passing.
 - [GAIA](https://arxiv.org/abs/2311.12983): 466 questions with answers withheld for 300 of them, so the leaderboard cannot be scraped.
 - [BIG-bench](https://github.com/google/BIG-bench): the canary string carried in every task file to keep benchmark tasks out of web-scraped training data.
-- [Chow 1970](https://ieeexplore.ieee.org/document/1054406): the reject option, and the trade between error rate and how much you decline to answer.
-- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500) (Geifman and El-Yaniv): coverage, selective risk, and the risk-coverage curve.
-- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml): the squared-error score for probability forecasts.
-- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599) (Guo et al.): expected calibration error and reliability diagrams,
-  and the finding that accuracy and calibration move independently.
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406): how the reject option trades fewer errors for more unanswered cases.
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500) (Geifman and El-Yaniv): how coverage relates to selective risk in a risk-coverage curve.
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml): scoring probability forecasts with squared error.
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599) (Guo et al.): measuring expected calibration error and plotting reliability diagrams.
+  Accuracy and calibration can change independently.
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): checklist rubrics that name required facts, required reasoning steps, and the pitfalls that must be penalized.
 - [Claude Code](https://code.claude.com/docs): the reviewer and judge stages in the workflow contract, from tool schemas and documented behavior, not the source backup.
   Evaluation suites are not present in the source, so those cells are marked as reconstruction.
