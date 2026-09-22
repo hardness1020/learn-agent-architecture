@@ -16,7 +16,7 @@ Graph engineering 的做法，是把已知流程用代码写成一张有向图�
 3. **Cycle** 让流程可以回头，适合重试、review 后修改，或人工暂停后继续。
 4. **State** 是沿着图传递的数据，每个 node 读取目前状态，再写回自己的更新。
 
-原则很简单：已知流程写进代码，只有需要语义判断的部分才交给 model。第 21 章的 loop 就是最小型的图，由两个 node 和一条回边组成；本章会把它扩展成节点更多、连接方式更弹性的结构。
+原则很简单：已知流程写进代码，只有需要语义判断的部分才交给 model。第 21 章的 loop 就是最小的一张图，两个 node 加一条回边；本章把它推广到 node 更多、接法更自由的图。
 
 ---
 
@@ -43,7 +43,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 ```
 
 - `nodes` 是一张 dispatch map（第 2 章）。node 读 state，只返回自己改动的 key。
-- edge 可以是固定的名字（决定性的），也可以是吃 state 的函数（条件式的）。两种都由 harness 用代码判断，routing 不花任何 token。
+- edge 可以是写死的 node 名字（每次都走同一条），也可以是吃 state 的函数（按条件选）。两种都由 harness 用代码判断，routing 不花任何 token。
 - 没有 edge 的 node 就是图的终点。budget 是第 21 章的上限：cycle 撞到上限就停，返回 `ok: False` 交给人。
 - `trace` 按顺序记下跑过哪些 node，就是这次执行留给第 20 章的记录。
 
@@ -51,7 +51,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 每个 node 都在纯代码和完整 agent 之间选一个位置：
 
-- **Code node：** 解析、验证、固定的 API 调用。决定性的，不花 token。
+- **Code node：** 解析、验证、固定的 API 调用。结果每次都一样，也不花 token。
 - **Model node：** 一次 LLM 调用，例如分类器。有限度的判断。
 - **Agent node：** 一整个第 1 章的 loop，带着 tool。开放式的判断，但被固定在一个位置上。
 
@@ -109,7 +109,7 @@ model 是把 state 当数据读的，不会把它当成有敌意的输入，所�
 - **Prompt chaining：** 一串 node 排成一条路，中间用代码把关。
 - **Routing：** 一条条件式 edge，分流到各个专门的 node。
 - **Parallelization：** 几条同时跑的分支在一个 node 会合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
-- **Orchestrator-workers：** 一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是动态的，但形状仍然是图。
+- **Orchestrator-workers：** 一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是执行时才决定的，但整体仍然是一张图。
 - **Evaluator-optimizer：** 一个 worker node、一个 checker node，加一条往回的 edge。这就是第 21 章的验证 loop，放进图里变成一个子图。
 
 各家的讲法还没统一。同样的东西，`ai-agent-book` 用的词是「collaboration topology」和「orchestration」，「graph engineering」它只在术语注记里提了一句。
@@ -118,8 +118,8 @@ model 是把 state 当数据读的，不会把它当成有敌意的输入，所�
 ### 什么时候不要画图
 
 开放式的工作没办法预先定好流程。深度研究和难查的 bug 需要边跑边规划；事先画死的图，反而挡住解法需要走的那条路。
-出处给的原则：只把你本来就要强制执行的结构写进图里（先分类再处理、先 review 再 commit、先批准再送出），
-而且只在确实改善结果时才加结构。其他的都交给普通的 loop，让 model 自己规划。
+出处给的原则：只把你本来就会强制执行的流程写进图里（先分类再处理、先 review 再 commit、先批准再送出），
+而且只在确实改善结果时才多画一段。其他的都交给普通的 loop，让 model 自己规划。
 
 最常见的其实是混合式：把 agent 当成固定图里的一个 node。图保证 review 一定会发生，agent 决定在自己的位置里怎么把事做完。
 
@@ -131,8 +131,8 @@ model 是把 state 当数据读的，不会把它当成有敌意的输入，所�
 - 代码判断的 edge 沿用第 2 章的 dispatch 纪律：查表，不是 model 的输出。
 - worker 和 checker 分属不同 node 是第 6 章；并行的分支用第 15 章的 worktree 隔离。
 - step budget 和交回给人的约定是第 21 章。
-- trace 交给第 20 章的 telemetry：看哪些 edge 有 fire，就知道哪些分支是死的。
-- 带类型的 edge 好不好用，全看那两个阈值；而阈值是某个人挑出来的常数。第 23 章拿标注过的日志替它们打分。
+- trace 交给第 20 章的 telemetry：看哪些 edge 真的触发过，就知道哪些分支是死的。
+- 带类型的 edge 要靠两个阈值，而阈值得有人挑。第 23 章拿标注过的日志检查这两个数挑得对不对。
 
 可执行程序接的就是上面那张图：
 
@@ -169,9 +169,9 @@ history 原封不动留着，所以没有东西要打包给下一个 phase。书
 **Gate tool：** model 想离开一个 phase，就调用一个 gate tool，例如 `finish_exploring`。
 harness 把这个调用当成 edge，接着开始下一个 phase。gate 是唯一的出口，所以一个 phase 什么时候结束，是 harness 说了算，不是 model。
 
-**路线：** 先跑 explore，再跑 implement，最后 review。review 没过就把执行送回 implement，
+**流程：** 先跑 explore，再跑 implement，最后 review。review 没过就把执行送回 implement，
 implement 接着往下做，review 写的东西本来就在 trajectory 里。用本章的讲法，这就是一条路加一条往回的 edge，
-跟前面的 evaluator-optimizer 同一个形状。
+跟前面的 evaluator-optimizer 长得一样。
 
 **要挂哪一种：** 分支之间没关系，就用全新的 `messages[]`；几个 node 是同一件工作的不同阶段，就留同一条 trajectory。
 全新的 `messages[]` 让每个 node 的 window 都很小，分支之间也互不干扰。
@@ -190,9 +190,9 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 
 | | Claude Code | Hermes Agent | mini-swe-agent |
 | --- | --- | --- | --- |
-| **优点** | Routing 是代码：不花 token、不会变来变去。续跑时跑完的 node 从记录重放。 | 不用事先画图，任务长什么样，结构就长什么样。 | 整张图一眼就能看完。 |
-| **限制** | 图活在单次执行的 script 里，不是可以重用的声明式图。 | Routing 花 model 的 token，每次跑可能不一样。 | 所有任务共享同一个形状，没有分支可以特化。 |
-| **设计原因** | 把编排当成程序：script 写好一次，harness 每次都决定性地执行。 | 假设助手型工作太开放，结构没办法预先声明。 | 所有选择都留在 model 里，harness 只留一个 cycle。 |
+| **优点** | Routing 是代码：不花 token、不会变来变去。续跑时跑完的 node 从记录重放。 | 不用事先画图，任务怎么走，流程就怎么走。 | 整张图一眼就能看完。 |
+| **限制** | 图活在单次执行的 script 里，不是可以重用的声明式图。 | Routing 花 model 的 token，每次跑可能不一样。 | 所有任务都走同一条流程，没有哪条分支能特化。 |
+| **设计原因** | 把编排当成程序：script 写好一次，之后每次执行的走法都一样。 | 假设助手型工作太开放，流程没办法事先声明。 | 所有选择都留在 model 里，harness 只留一个 cycle。 |
 | **做法：nodes** | 一个 node 一个 subagent，返回通过 schema 验证的结构化输出。 | 委派出去的 subagent，深度和并行数都有上限。 | 两个：一个 model step、一个 environment step。 |
 | **做法：routing** | 阶段之间用普通的 script 代码：条件、循环、并行分派。 | model 用 tool call 选路，没有写在代码里的 edge。 | 一个固定的 cycle，跑到 model 提交或 budget 用完为止。 |
 | **做法：state** | 阶段的返回值往下传；journal 记下每个 node 的输出供续跑。 | 结果经过 completion queue 回到调用方。 | message list 就是全部的 state。 |
@@ -202,15 +202,15 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 ## 常见问题
 
 - **Model 当 router（Model as router）：** 把选路交给 model，烧 token、增加延迟，而且每次跑不一样。最上游选错一次，后面全部跟着错。
-  缓解：转移用代码判断；model 调用留给需要判断的 node。
-- **把概率当成证据（Probability read as proof）：** 带类型的答案永远格式工整，所以看起来像已经拍板了，答错的时候也一样。
-  缓解：中间那段问人的区间留着；这一层只准收掉分支，永远不准它放行一条分支。
-- **证据是 agent 自己写的（Evidence the agent can write）：** 交给带类型 edge 的那份 state 里有 model 自己的输出，于是这趟执行可以自己说服自己过关。
-  缓解：那份 state 只用 harness 自己掌握的字段拼出来；这一层当 router 用，不能当安全边界。
-- **阈值只配过一次（Thresholds set once）：** 两个常数是照某一版 model、某一种流量配比配出来的，后来两边都在变，它们却没再动过。
-  缓解：先只记录判定、不真的照着做，再拿这份记录重新配一次；问题的文字要跟阈值一起做版本管理（第 23 章）。
+  缓解：下一步走哪条 edge 由代码判断；model 调用留给需要判断的 node。
+- **把概率当成证据（Probability read as proof）：** 带类型的答案格式工整，看起来就像是对的。
+  缓解：弃权区间留着；这一层只准收掉分支，绝不准它放行一条。
+- **证据是 agent 自己写的（Evidence the agent can write）：** 带类型的 edge 读到的 state 里可能有 model 自己的输出，而这段输出会改掉 gate 给的答案。
+  缓解：这份 state 只用 harness 自己掌握的字段拼出来；这一层拿来选路，不能当安全边界。
+- **阈值只配过一次（Thresholds set once）：** 阈值是照某一版 model、某一种流量配比配出来的，后来两边都在变，它却一直没动过。
+  缓解：判定先只记录、不照着执行；拿这份记录重新配一次；问题的文字和阈值一起做版本管理（第 23 章）。
 - **过度画图（Over-graphing）：** 需要探索的任务被固定的图框住，解法要走的路被挡掉。
-  缓解：只把本来就要强制执行的结构写进图里；开放式的工作留给普通的 loop。
+  缓解：只把本来就会强制执行的流程写进图里；开放式的工作留给普通的 loop。
 - **没有失败的路（No failure edge）：** 负责检查的 node 遇到 FAIL 却无路可送，烂输出就一路流到下游。
   缓解：每个检查 node 都给一条带 budget 的往回 edge（第 21 章）。
 - **没有上限的 cycle（Unbounded cycle）：** 没有上限的重试 edge 会永远绕下去。缓解：harness 强制执行的 step budget；budget 用完就交给人。
@@ -261,8 +261,8 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
   选择题的答案里，每个选项一个概率，另外附一个 confidence。
   [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 讲有敌意的 state 和 context rot。
   [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) 讲它的定位：
-  这是给软件用的 model，不是给 agent 用的，它永远不会自己决定下一步做什么。
-  产品页上写的延迟和价格是厂商自己跑出来的，没有人复现过，所以本章引用的是它的约定和限制，不是那些数字。
+  它回答的是软件提出的问题，不是拿来当 agent 用的，它永远不会自己决定下一步做什么。
+  本章引用的是文件里写明的约定和限制。厂商跑出来的延迟和价格数字，这里没有人复现过。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版为准）：
   在同一条 trajectory 上做多阶段角色转换：每个 phase 一份 system prompt 和一套 tool，phase 之间用 tool call 当关卡，review 可以绕回实现。
   这个做法的证据只有书里自己做的实验。同一章主要用的词是「collaboration topology」和「orchestration」。
