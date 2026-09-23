@@ -118,12 +118,12 @@ dsh 把这种分发方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 ## 常见问题
 
-- **hook 绕过 permission：**hook 可能试图允许一个已被拒绝的动作。要把 hook 输出对照规则型 permission 来裁决。
-- **Stop hook 无限 loop：**一个 `Stop` hook 可能挡下、触发自我修正，然后又再次触发。要追踪 stop hook 是否已经在运作中。
-- **hook 配置在 session 中途改变：**某个进程可能在启动后修改 settings。要对 hook 配置做一次快照。
-- **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
-- **PostToolUse 意外停止：**若 post-hook 返回 `preventContinuation`，要把它呈现为一个优雅的停止，而不是崩溃。
-- **诊断消息淹没结果：**整个项目跑一次 lint，回来的文字可能比写入本身还多。只检查刚改过的那个文件，加回去的量也要设上限。
+- **hook 绕过 permission：** hook 可能试图允许一个已被拒绝的动作。要把 hook 输出对照规则型 permission 来裁决。
+- **Stop hook 无限 loop：** 一个 `Stop` hook 可能挡下、触发自我修正，然后又再次触发。要追踪 stop hook 是否已经在运作中。
+- **hook 配置在 session 中途改变：** 某个进程可能在启动后修改 settings。要对 hook 配置做一次快照。
+- **慢速 hook 卡住 loop：** hook 可能 shell out 去做很慢的工作。要加上 timeout。
+- **PostToolUse 意外停止：** 若 post-hook 返回 `preventContinuation`，要把它呈现为一个优雅的停止，而不是崩溃。
+- **诊断消息淹没结果：** 整个项目跑一次 lint，回来的文字可能比写入本身还多。只检查刚改过的那个文件，加回去的量也要设上限。
 
 ---
 

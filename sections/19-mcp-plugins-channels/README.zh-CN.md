@@ -35,18 +35,18 @@ MCP（Model Context Protocol）是一套用来解决这个问题的开放标准�
 2026-07-28 版的 spec 把 protocol 本身改成了 stateless：每个 request 都是独立的，哪台 server 副本都能接。
 上面 harness 端做的事（探索、包装、合并）都不变。变的是 client 跟 server 之间实际往来的消息：
 
-- **不用握手了：**以前 client 得先调用 `initialize`、等 server 响应，才能做别的事。
+- **不用握手了：** 以前 client 得先调用 `initialize`、等 server 响应，才能做别的事。
   现在任何 request 都能直接发，每个 request 自己在 `_meta` 里带上 protocol 版本和能力。
   想先确认版本，就调用 `server/discover` 问 server。
-- **没有 session 了：**以前 server 靠一个 session header 帮每条连接记状态。
+- **没有 session 了：** 以前 server 靠一个 session header 帮每条连接记状态。
   现在 server 若需要跨调用记东西，就返回一个 handle，client 之后当成普通的工具参数带回来。
-- **通知走一条 stream：**以前 client 得挂着一条 GET 连接听变动。
+- **通知走一条 stream：** 以前 client 得挂着一条 GET 连接听变动。
   现在它开一条 `subscriptions/listen` stream，指名要听哪些事件（工具列表变了、resource 变了）。
   list 的结果也多了 `ttlMs` 字段，告诉 client 可以 cache 多久。
-- **server 用回复提问，不再回头调用：**以前 server 可以在工具跑到一半时，反过来对 client 发 request
+- **server 用回复提问，不再回头调用：** 以前 server 可以在工具跑到一半时，反过来对 client 发 request
   （问用户一个问题、请模型 sample）。现在它返回一个标着 `input_required` 的中间结果，
   client 把答案附上，重发同一个 request。
-- **功能变少了：**Roots、Sampling、Logging 和旧的 HTTP+SSE transport 都列为 deprecated。
+- **功能变少了：** Roots、Sampling、Logging 和旧的 HTTP+SSE transport 都列为 deprecated。
   官方 transport 剩两种：本地用 stdio，远程用 Streamable HTTP。
 
 对用 agent 的人来说，画面上什么都没变：旧 server 照常运行，v1 SDK 也继续维护。
@@ -150,28 +150,28 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 以下设计 `src/` 都没有实现，出自 ai-agent-book 和 MCP spec，也未经下面表格的系统证实。
 
-**三种 primitive，只有一种进池子：**一个 server 可以提供三种东西，但只有 tool 会进到上面那个池子。
+**三种 primitive，只有一种进池子：** 一个 server 可以提供三种东西，但只有 tool 会进到上面那个池子。
 
 - **Tools** 是动作。模型自己挑一个来调用。`tools/list` 返回的就是这些，上面的代码包的也是它们。
 - **Resources** 是可以读的数据，每一条都有一个 URI：一个文件、一张表、一页 wiki。client 把它抓下来，把内容放进 context。模型不会去调用它。
 - **Prompts** 是 server 给的模板。它通常是用户可以运行的一个命令，不是模型自己挑的东西。
 
-**resource 不会出现在工具列表上：**Claude Code 不会把它们一个一个公告出去，它只放两个工具，一个列出 resource，一个把 resource 读出来。
+**resource 不会出现在工具列表上：** Claude Code 不会把它们一个一个公告出去，它只放两个工具，一个列出 resource，一个把 resource 读出来。
 所以一个放了上千份文件的 server，在工具列表里还是只占两格。
 
-**连上去和公告出去，是两个决定：**连上一个 server，换到的是互通；把它的工具公告给模型，花掉的是 context。
+**连上去和公告出去，是两个决定：** 连上一个 server，换到的是互通；把它的工具公告给模型，花掉的是 context。
 前面那件事可以做，后面那件事不一定要做满。
 
-**公告出去要付什么代价：**每一个公告出去的工具，每次 request 都在花 token。名称、描述、完整的 input schema，全都排在任务前面。
+**公告出去要付什么代价：** 每一个公告出去的工具，每次 request 都在花 token。名称、描述、完整的 input schema，全都排在任务前面。
 五个 server 加起来，这段文字可能比任务本身还长。列表一长，模型也更容易挑错工具（第 2 章）。
 
-**公告的程度有三种可以挑：**一个 server 一个 server 决定公告多少，不是全部一起套。
+**公告的程度有三种可以挑：** 一个 server 一个 server 决定公告多少，不是全部一起套。
 
-- **全部都公告：**最单纯。适合那种几乎每一轮都会用到的 server。
-- **只公告一份索引：**先给名称和一句话说明。等模型指名要哪个工具，再把完整的 schema 载进来（探索那一侧在第 2 章）。
-- **只开一扇门：**只公告一个工具，参数是 server 名称和工具名称，其他都放在它后面。agent 只要付一份 schema，不用付五十份。
+- **全部都公告：** 最单纯。适合那种几乎每一轮都会用到的 server。
+- **只公告一份索引：** 先给名称和一句话说明。等模型指名要哪个工具，再把完整的 schema 载进来（探索那一侧在第 2 章）。
+- **只开一扇门：** 只公告一个工具，参数是 server 名称和工具名称，其他都放在它后面。agent 只要付一份 schema，不用付五十份。
 
-**protocol 完全没管这件事：**它只规定工具怎么列、怎么调用。有多少工具会进到 prompt，是 client 自己决定的。
+**protocol 完全没管这件事：** 它只规定工具怎么列、怎么调用。有多少工具会进到 prompt，是 client 自己决定的。
 所以延后加载是你要去自己的 harness 里确认的配置，server 不能假设它一定开着。
 
 ---
@@ -193,21 +193,21 @@ harness 如何伸手触及自身之外。
 
 ## 常见问题
 
-- **撞名（Name collisions）：**两个 server 都公开 `search`。`mcp__server__tool` 命名空间避免了冲突；但一个名称含 `__` 的 server 仍会被解析错误，所以名称要保持简单。
-- **工具列表膨胀（Tool-list bloat）：**太多 server 会造成庞大的工具列表，既花 token 又干扰选择（第 2 章）。
+- **撞名（Name collisions）：** 两个 server 都公开 `search`。`mcp__server__tool` 命名空间避免了冲突；但一个名称含 `__` 的 server 仍会被解析错误，所以名称要保持简单。
+- **工具列表膨胀（Tool-list bloat）：** 太多 server 会造成庞大的工具列表，既花 token 又干扰选择（第 2 章）。
   缓解：截断描述，并且一个 server 一个 server 决定公告多少，不要每次 request 都把所有 schema 送一遍。
-- **connect 之后池过时：**一个在 session 中途加入的 server 不在 cache 的工具列表里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）；
+- **connect 之后池过时：** 一个在 session 中途加入的 server 不在 cache 的工具列表里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）；
   2026-07-28 版的 spec 为此加了走 `subscriptions/listen` 的 `toolsListChanged` 通知和 `ttlMs` 提示。
-- **连接抖动（Connection churn）：**一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
+- **连接抖动（Connection churn）：** 一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
   stateless 版拿掉了 stream 续传，所以中断的 request 要当成一个新 request 重发，不是接着传。
-- **被过度信任的副作用：**一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
-- **描述投毒（Description poisoning）：**工具描述是 server 自己写的文字，模型却把它当成指令在读。
+- **被过度信任的副作用：** 一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
+- **描述投毒（Description poisoning）：** 工具描述是 server 自己写的文字，模型却把它当成指令在读。
   server 可以在里面塞一句话，例如叫模型先读用户的密钥文件、再一起传过来。模型真的有可能照做。
   缓解：装一个 server 之前，先把描述读过一遍。描述改了，就当成代码改了那样审。
-- **工具遮蔽（Tool shadowing）：**所有 server 共享同一份 prompt。所以一个 server 的描述可以讲到另一个 server 的工具，
+- **工具遮蔽（Tool shadowing）：** 所有 server 共享同一份 prompt。所以一个 server 的描述可以讲到另一个 server 的工具，
   说付款工具坏了，再把调用拉到自己身上。
   缓解：命名空间挡得住撞名，挡不住这个。没审过的 server，别放进握有真实凭证的 session。
-- **被劫持的更新（Hijacked updates）：**一个 server 审过了，下次启动时却换上新的代码和新的描述。protocol 不会再问用户一次。
+- **被劫持的更新（Hijacked updates）：** 一个 server 审过了，下次启动时却换上新的代码和新的描述。protocol 不会再问用户一次。
   缓解：把版本钉住。升级之后把描述再读一遍。每个 server 各给一份最小权限的凭证，这样一个 server 坏掉，也伸不到别的 server 的范围。
 
 ---

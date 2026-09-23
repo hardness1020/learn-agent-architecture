@@ -118,12 +118,12 @@ dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook �
 
 ## 常見問題
 
-- **hook 繞過 permission：**hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照規則型 permission 來裁決。
-- **Stop hook 無限 loop：**一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
-- **hook 設定在 session 中途改變：**某個行程可能在啟動後修改 settings。要對 hook 設定做一次快照。
-- **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
-- **PostToolUse 意外停止：**若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
-- **診斷訊息淹沒結果：**整個專案跑一次 lint，回來的文字可能比寫入本身還多。只檢查剛改過的那個檔案，加回去的量也要設上限。
+- **hook 繞過 permission：** hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照規則型 permission 來裁決。
+- **Stop hook 無限 loop：** 一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
+- **hook 設定在 session 中途改變：** 某個行程可能在啟動後修改 settings。要對 hook 設定做一次快照。
+- **慢速 hook 卡住 loop：** hook 可能 shell out 去做很慢的工作。要加上 timeout。
+- **PostToolUse 意外停止：** 若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
+- **診斷訊息淹沒結果：** 整個專案跑一次 lint，回來的文字可能比寫入本身還多。只檢查剛改過的那個檔案，加回去的量也要設上限。
 
 ---
 

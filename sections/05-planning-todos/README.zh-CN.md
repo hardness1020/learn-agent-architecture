@@ -23,9 +23,9 @@
 
 这里有两个工具。两个都是一般的模型工具，核心 loop 完全不需要修改。
 
-**Todo list。**模型会覆盖一份结构化的检查列表。这个工具不会碰文件或 shell，只负责保存目前 session 的计划状态。
+**Todo list。** 模型会覆盖一份结构化的检查列表。这个工具不会碰文件或 shell，只负责保存目前 session 的计划状态。
 
-**Plan mode。**session 进入只读模式。模型可以探索、写下计划，然后调用 `ExitPlanMode`。这个离开动作由 permission 层把关。
+**Plan mode。** session 进入只读模式。模型可以探索、写下计划，然后调用 `ExitPlanMode`。这个离开动作由 permission 层把关。
 
 ### 本章添加：todo 与 plan mode 工具
 
@@ -85,11 +85,11 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都会写入�
 
 ## 常见问题
 
-- **列表过时：**模型不再更新 todos。要提醒它让一个项目保持 `in_progress`，并在工作完成时关闭项目。
-- **对小工作过度规划：**为一个单步骤的任务列 todo list 会增加噪声。琐碎的任务就略过它。
-- **Plan mode 无法离开：**有些接口无法显示批准对话框。在那些接口上要把进入与离开一起停用。
-- **没进入就离开：**模型可能在不合适的 context 下调用 `ExitPlanMode`。要先验证当前 mode 是否为 `plan`。
-- **计划随 context 消失：**一份扁平的 todo list 是 session 状态。当工作必须跨越一个 turn 或进程而存活时，要改用 task 系统。
+- **列表过时：** 模型不再更新 todos。要提醒它让一个项目保持 `in_progress`，并在工作完成时关闭项目。
+- **对小工作过度规划：** 为一个单步骤的任务列 todo list 会增加噪声。琐碎的任务就略过它。
+- **Plan mode 无法离开：** 有些接口无法显示批准对话框。在那些接口上要把进入与离开一起停用。
+- **没进入就离开：** 模型可能在不合适的 context 下调用 `ExitPlanMode`。要先验证当前 mode 是否为 `plan`。
+- **计划随 context 消失：** 一份扁平的 todo list 是 session 状态。当工作必须跨越一个 turn 或进程而存活时，要改用 task 系统。
 
 ---
 

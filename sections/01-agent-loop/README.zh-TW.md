@@ -97,10 +97,10 @@ for user_text in turns:                              # the outer loop: one itera
 
 ## 常見問題
 
-- **沒有停止條件：**一個 bug 或工具 loop 可能永遠跑下去。用最大步數或 token 上限。
+- **沒有停止條件：** 一個 bug 或工具 loop 可能永遠跑下去。用最大步數或 token 上限。
 - **loop 中途 context overflow：**`messages[]` 只會變長。第 8 章加上 context 管理。
-- **部分工具失敗：**失敗的工具仍必須回傳一個 `tool_result`，模型才能復原。
-- **結果遺失：**丟掉 assistant 的工具呼叫或工具結果任何一個，都會破壞 transcript。兩者都要附加。
+- **部分工具失敗：** 失敗的工具仍必須回傳一個 `tool_result`，模型才能復原。
+- **結果遺失：** 丟掉 assistant 的工具呼叫或工具結果任何一個，都會破壞 transcript。兩者都要附加。
 
 ---
 
