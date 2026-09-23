@@ -186,6 +186,7 @@ prompt 層は確率を下げます。実行層は被害を抑え込みます。
 - **cache のキーが多すぎる。** 境界より前の実行時の条件 1 つごとに、別々に温める必要のある先頭部分が倍になる。条件付きの section は境界より後ろに置く。
 - **ステータスのブロックが古くなる。** 追記した state が溜まり、モデルが古い写しに基づいて動く可能性がある。最新のブロックに印を付けるか、置き換えて cache の作り直しを受け入れる。
 - **外部の内容が命令として読まれる。** tool の結果に出所のタグを付け、タグ付きの内容はデータだと明言する。本当の境界は section 3 の permission のチェックのままである。
+- **entrypoint が変わると prompt も変わる。** 同じ build でも起動方法で組み方が変わる。Claude Code は対話で 26,131 文字と 35 tool、`-p` では 20,806 文字と 29 tool。
 
 ---
 
@@ -221,3 +222,4 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
   agent のステータスバーと置き換え対追記のトレードオフ、principal loyalty を伴う context 層での injection 防御。
   本書のステータスバーと忠誠に関する計測は著者自身の benchmark なので、数値は単一の出典しかなく、ここでは繰り返しません。
 - [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): section の枠組み。
+- [OrcaPromptVault](https://github.com/Continuum-AI-Corp/OrcaPromptVault): harness と entrypoint ごとに記録した組み上がりの prompt。各ファイルに再現用のコマンドか runbook が付く。
