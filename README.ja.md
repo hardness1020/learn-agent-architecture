@@ -125,7 +125,7 @@ loop そのものは小さいです。工学の大部分はその周りにあり
 | 23 | [評価](sections/23-evaluation/README.ja.md) | 変更で良くなったとどう分かるのか | eval 環境、リセット、判定器、Pass^k |
 |    | **層 7 · 組み合わせ** | | |
 | 21 | [Loop エンジニアリング](sections/21-loop-engineering/README.ja.md) | loop はどう積み重なって自走するシステムになるのか | 検証 loop、トリガー、予算、成熟度レベル |
-| 22 | [グラフエンジニアリング](sections/22-graph-engineering/README.ja.md) | 制御フローはいつモデルからコードへ移るのか | ノード、コードで書いた辺、循環、ノードとしての agent |
+| 22 | [グラフエンジニアリング](sections/22-graph-engineering/README.ja.md) | 制御フローはいつモデルからコードへ移るのか | ノード、コードで書いた辺、循環、ノードとしての agent、型付きの判断で選ぶ辺 |
 
 ---
 
@@ -212,6 +212,8 @@ PR のチェックリスト全体は [CONTRIBUTING.md](CONTRIBUTING.md) を見�
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): ノード、辺、循環、そしてノードとしての agent。
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): ワークフローと agent の違い、および 5 つのワークフロー類型。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): コードで書くルーティングと、ノード間の context 分離。
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md): 型付きの decision model のリクエスト契約と答えの形。
+  セクション 22 は [`decide.py`](sections/22-graph-engineering/src/decide.py) でそれをグラフの辺に組み込みます。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰 著『深入理解 AI Agent』(Apache-2.0)。第 6 章が評価のセクションの土台です。
 
 ---

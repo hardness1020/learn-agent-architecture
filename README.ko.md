@@ -125,7 +125,7 @@ loop는 작습니다. 엔지니어링 대부분은 그 주위에 있습니다. t
 | 23 | [평가](sections/23-evaluation/)                               | 어떤 변경이 더 나아졌는지 어떻게 아는가?           | eval 환경, 초기화, 판정기, Pass^k                     |
 |    | **Layer 7 · 조합**                                     |                                                    |                                                       |
 | 21 | [Loop 엔지니어링](sections/21-loop-engineering/)              | loop는 어떻게 쌓여 스스로 도는 시스템이 되는가?    | 검증 loop, 트리거, 예산, 성숙도 단계                  |
-| 22 | [Graph 엔지니어링](sections/22-graph-engineering/)            | 제어 흐름은 언제 모델에서 코드로 넘어가는가?       | 노드, 코드로 짠 엣지, 순환, 노드로서의 agent          |
+| 22 | [Graph 엔지니어링](sections/22-graph-engineering/)            | 제어 흐름은 언제 모델에서 코드로 넘어가는가?       | 노드, 코드로 짠 엣지, 순환, 노드로서의 agent, 타입이 정해진 판단 엣지 |
 
 ---
 
@@ -212,6 +212,8 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): 노드, 엣지, 순환, 그리고 노드로서의 agent.
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow와 agent의 대비, 그리고 다섯 가지 workflow 형태.
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 코드로 하는 라우팅과 노드 사이의 context 격리.
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md): 타입이 정해진 decision model의 요청 계약과 답의 형태.
+  섹션 22는 [`decide.py`](sections/22-graph-engineering/src/decide.py)에서 이것을 그래프 엣지에 물립니다.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 李博杰의 《深入理解 AI Agent》(Apache-2.0). 6장이 평가 섹션의 근거입니다.
 
 ---

@@ -139,6 +139,37 @@ def grade(task, run):                                  # src/evaluation.py
 
 [EvalGrill](https://github.com/hardness1020/EvalGrill) 把這套流程包成工具：把 agent 應用的真實案例做成 eval，先把 judge 校準好再信它。
 
+### 機率式的 gate 要怎麼評
+
+第 22 章加了一種照機率選路的 edge，光看 pass rate 評不了它。
+pass rate 只數得出有幾次走對分支，看不出這些機率到底可不可靠，還是 router 剛好在這批樣本上猜得準。
+
+要量三件事，各自抓得到不同的毛病。
+
+- **判定本身：** 門檻先固定住，把標註過的紀錄重放一次，false allow 和 false deny 分開數。
+  false allow 會讓有害的事真的跑下去，false deny 只是多打斷人一次。這兩種錯不能混為一談，
+  只給一個準確率，就把這個差別蓋掉了。
+- **數字本身：** Brier score 量的是機率和實際結果之間的均方誤差。
+  expected calibration error（ECE）把預測分箱，再比較每一箱預測的機率和這一箱實際發生的比例。
+  說 0.9 而十次裡真的發生九次，就叫 calibrated；如果每次都發生，那是信心不足，而對這道 gate 來說，信心不足是安全的那一邊。
+- **coverage：** gate 自己決定、沒有去問人的那個比例。兩個門檻往中間靠，不表態的區間就變窄，
+  coverage 跟著往上，一直到最後那一點 coverage 換來一次 false allow 為止。
+
+```python
+verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
+            for p, c, harmful in log]
+"coverage": sum(1 for v, _ in verdicts if v != "ask") / n,
+"false_allow": sum(1 for v, h in verdicts if v == "allow" and h),         # ran something harmful
+"false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
+```
+
+門檻要從真實流量的紀錄裡挑。先讓 gate 跑起來，什麼都不擋，但每個決策都記下來。把那份紀錄標好，再把門檻的各種組合掃過一遍，
+在這份紀錄裡挑出 coverage 最高、而且一次 false allow 都沒有的那一組。
+
+離線測試檢查的是機制：機率往上調，判定絕對不能變鬆；拿不到答案一定要回 `ask`。
+標註過的紀錄檢查的是門檻。錄下來的機率就算一點都不準，測試照樣可以全部通過，所以兩邊缺一不可。
+model 換版本，或者流量的組成變了，就把這一輪掃描重跑一次；這兩件事都會改變機率，而且都不會先跟你講。
+
 ### dataset 決定分數代表什麼
 
 環境做得再好，dataset 不行，跑出來的就是噪音。各家 benchmark 反覆驗證出四條原則。
@@ -225,6 +256,9 @@ Feature flag 負責分 AB 測試的組別，出事時也是斷路開關。
   緩解：換不同家族的 judge、順序對調各評一次、先用人工標註的 gold set 校準。
 - **鑽分數的漏洞（Reward hacking）：** agent 找到拿分的捷徑，跳過真正的工作：塞關鍵字、討好 judge、遇到難題就迴避。
   緩解：rubric 裡放否決項、結果指標旁邊擺過程指標，再定期人工抽檢。
+- **把 calibration 當成準確率（Calibration read as accuracy）：** 一道 gate 的機率就算 calibrate 得很好，在你眼前這一題上還是可能答錯；
+  而在這批樣本上每次都選對路的 gate，calibration 也可能很差。這兩個數字誰都取代不了誰。
+  緩解：判定和機率分開評，false allow 和 false deny 也分開算。
 - **這套評估看不出改動（A suite that cannot see the change）：** 40 個任務上 2 個百分點的提升根本量不出來，每一輪都只能寫「看不出差別」。
   緩解：先把任務集擴大，再繼續迭代。
 - **上一趟的 state 留到下一趟（State leaking between runs）：** 沒有 reset，或只 reset 了淺的一層，上一個任務寫下的東西就決定了下一題的分數。
@@ -237,10 +271,12 @@ Feature flag 負責分 AB 測試的組別，出事時也是斷路開關。
 [`src/`](src/) 把 22 帶了過來，並加上：
 
 - [`evaluation.py`](src/evaluation.py)：帶 `reset` 和呼叫紀錄的環境、一輪只釋出一項資訊的模擬使用者、episode 的 protocol、
-  打分（state 檢查、該講的話、否決項）、Pass@k 與 Pass^k、二項分布的噪音帶，以及兩份 build 的配對比較。
-- [`test.py`](src/test.py)：離線檢查 reset 有沒有把 state 還原、protocol 跑一趟時 agent 必須先問訂單編號、
+  打分（state 檢查、該講的話、否決項）、Pass@k 與 Pass^k、二項分布的噪音帶，還有兩份 build 的配對比較。
+  另外新增 `brier`、`ece` 和 `sweep`，用來評第 22 章那條機率 edge。
+- [`test.py`](src/test.py)：離線檢查涵蓋 reset 有沒有把 state 還原、protocol 跑一趟時 agent 必須先問訂單編號、
   結果檢查明明有過卻被否決項擋下、同一個不穩定的 build 上 Pass@k 與 Pass^k 的差別，
-  以及退步的 build 分數更低、配對比較能指出它弄壞了哪幾題。
+  以及退步的 build 分數更低、配對比較指得出是哪幾題壞了。
+  另外還檢查兩份選路一模一樣的紀錄，Brier 和 ECE 卻不同分；掃門檻則檢查最後那一點 coverage 會換來一次 false allow。
 - [`demo.py`](src/demo.py)：實際跑一趟並打分。
   model 扮演客服 agent，它呼叫的 tool 都打在環境上，最後 harness 看它留下的 state 給分。
 
@@ -271,6 +307,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   打分方式是原本失敗的測試要變成通過，本來就會過的測試不能壞。
 - [GAIA](https://arxiv.org/abs/2311.12983)：466 題，其中 300 題的答案不公開，排行榜就抓不走。
 - [BIG-bench](https://github.com/google/BIG-bench)：每個任務檔案都帶 canary 字串，避免題目被爬進訓練資料。
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406)：reject option 怎麼用「多留幾題不回答」換來「少犯幾次錯」。
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500)（Geifman 與 El-Yaniv）：coverage 和 selective risk 的關係，畫成 risk-coverage 曲線。
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml)：用平方誤差替機率預測打分。
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599)（Guo 等人）：怎麼量 expected calibration error、怎麼畫 reliability diagram，
+  以及準確率和 calibration 會各走各的。
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746)（Scale AI）：清單式的 rubric，寫明要提到哪些事實、
   要有哪些推理步驟，以及哪些常見錯誤必須扣分。
 - [Claude Code](https://code.claude.com/docs)：workflow 約定裡的 reviewer 與 judge 階段。

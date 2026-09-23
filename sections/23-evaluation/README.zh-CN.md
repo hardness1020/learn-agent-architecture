@@ -139,6 +139,37 @@ def grade(task, run):                                  # src/evaluation.py
 
 [EvalGrill](https://github.com/hardness1020/EvalGrill) 把这套流程包成工具：把 agent 应用的真实案例做成 eval，先把 judge 校准好再信它。
 
+### 带概率的关卡怎么评
+
+第 22 章加了一条靠概率选路的 edge。光看 pass rate 评不出它好不好。
+pass rate 数的是分支走对了几次，它看不出那些概率可不可靠，也分不出 router 是不是刚好在这批样本上猜得准。
+
+要量三样东西，各自抓的是不同的毛病。
+
+- **判定：** 阈值固定住，拿标注过的日志重放一遍，false allow 和 false deny 分开数。
+  一次 false allow 会真的做出有害的事，一次 false deny 只是多打扰人一次。这两种错不能当成同一回事，
+  只报一个准确率，就把它们的差别盖掉了。
+- **数字本身：** Brier score 量的是概率和实际结果之间的均方误差。
+  expected calibration error（ECE）把预测分进一个个区间，再拿每个区间宣称的概率，去比它实际发生的比例。
+  说 0.9、十次里真的发生九次，就是 calibrated；说 0.9 却每次都发生，是把自己讲低了；对这个 gate 来说，讲低反而安全。
+- **coverage：** 这个 gate 不用问人就自己拍板的比例。两个阈值往中间靠，弃权区间就窄下来，
+  coverage 一路往上，直到最后多出来的那一点得拿一次 false allow 来换。
+
+```python
+verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
+            for p, c, harmful in log]
+"coverage": sum(1 for v, _ in verdicts if v != "ask") / n,
+"false_allow": sum(1 for v, h in verdicts if v == "allow" and h),         # ran something harmful
+"false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
+```
+
+阈值要从真实流量的日志里挑。先让 gate 跑起来，什么都不挡，每个判定都记下来。把日志标好，再把阈值的组合整个扫一遍，
+挑 coverage 最高、而且在这份日志里一次 false allow 都没有的那一组。
+
+离线测试查的是机制：概率调高，判定绝不能变松；答案没拿到，必须返回 `ask`。
+标注过的日志查的是阈值。录下来的那些概率本身可能很不可靠，测试照样会过，所以两边单独拿出来都不够。
+model 换了版本，或流量配比变了，就把扫描重跑一次。这两件事都会让概率跑掉，而且都不会明显地通知你。
+
 ### dataset 决定分数代表什么
 
 环境做得再好，dataset 不行，跑出来的就是噪音。各家 benchmark 反复验证出四条原则。
@@ -225,6 +256,9 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
   缓解：换不同家族的 judge、顺序对调各评一次、先用人工标注的 gold set 校准。
 - **钻分数的漏洞（Reward hacking）：** agent 找到拿分的捷径，跳过真正的工作：塞关键字、讨好 judge、遇到难题就回避。
   缓解：rubric 里放否决项、结果指标旁边摆过程指标，再定期人工抽检。
+- **把 calibration 当成准确率（Calibration read as accuracy）：** 概率 calibrate 得很好的 gate，在你眼前这一笔上照样可能答错；
+  在这批样本上每一笔都选对的 gate，calibration 也可能很差。这两个数字谁都替代不了谁。
+  缓解：判定和概率分开评，false allow 和 false deny 也分开算。
 - **这套评估看不出改动（A suite that cannot see the change）：** 40 个任务上 2 个百分点的提升根本量不出来，每一轮都只能写「看不出差别」。
   缓解：先把任务集扩大，再继续迭代。
 - **上一次的 state 留到下一次（State leaking between runs）：** 没有 reset，或只 reset 了浅的一层，上一个任务写下的东西就决定了下一题的分数。
@@ -237,10 +271,12 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
 [`src/`](src/) 把 22 带了过来，并加上：
 
 - [`evaluation.py`](src/evaluation.py)：带 `reset` 和调用记录的环境、一轮只释出一项信息的模拟用户、episode 的 protocol、
-  打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带，以及两份 build 的配对比较。
+  打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带、两份 build 的配对比较，
+  以及替第 22 章那条带概率的 edge 准备的 `brier`、`ece` 和 `sweep`。
 - [`test.py`](src/test.py)：离线检查 reset 有没有把 state 还原、protocol 跑一次时 agent 必须先问订单编号、
-  结果检查明明有过却被否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别，
-  以及退步的 build 分数更低、配对比较能指出它弄坏了哪几题。
+  结果检查明明有过却被安全否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别，
+  以及退步的 build 分数更低、配对比较能指出坏在哪几题。
+  还会检查两份日志选路完全一样、Brier 和 ECE 却打出不同分数；扫描阈值时，最后多出来的那一点 coverage 得拿一次 false allow 来换。
 - [`demo.py`](src/demo.py)：实际跑一次并打分。
   model 扮演客服 agent，它调用的 tool 都打在环境上，最后 harness 看它留下的 state 给分。
 
@@ -271,6 +307,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   打分方式是原本失败的测试要变成通过，本来就会过的测试不能坏。
 - [GAIA](https://arxiv.org/abs/2311.12983)：466 题，其中 300 题的答案不公开，排行榜就抓不走。
 - [BIG-bench](https://github.com/google/BIG-bench)：每个任务文件都带 canary 字符串，避免题目被爬进训练数据。
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406)：reject option 怎么用「多留几题不答」换来「少错几题」。
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500)（Geifman and El-Yaniv）：在 risk-coverage 曲线上，coverage 和 selective risk 是什么关系。
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml)：用平方误差替概率预报打分。
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599)（Guo et al.）：怎么量 expected calibration error，怎么画 reliability diagram。
+  准确率和 calibration 会各走各的。
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746)（Scale AI）：列表式的 rubric，写明要提到哪些事实、
   要有哪些推理步骤，以及哪些常见错误必须扣分。
 - [Claude Code](https://code.claude.com/docs)：workflow 约定里的 reviewer 与 judge 阶段。

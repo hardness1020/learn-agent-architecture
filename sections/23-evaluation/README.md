@@ -142,6 +142,37 @@ Calibrate the judge against a human-labeled gold set before trusting it at scale
 
 [EvalGrill](https://github.com/hardness1020/EvalGrill) packages this workflow: it builds evals from real agent-application cases and calibrates the judge before trusting it.
 
+### Scoring a probabilistic gate
+
+Section 22 added an edge that routes on a probability. A pass rate alone cannot evaluate it.
+It counts correct branches. It cannot tell whether the probabilities are reliable or the router just guessed well on this sample.
+
+Measure three things to check different kinds of error.
+
+- **The verdicts.** Hold the thresholds fixed and replay a labelled log. Count false allows and false denies separately.
+  A false allow runs something harmful. A false deny costs one interruption. These errors are not interchangeable.
+  A single accuracy score hides that difference.
+- **The numbers.** The Brier score measures the mean squared error between probabilities and observed outcomes.
+  Expected calibration error groups predictions into bins. It compares each bin's predicted probability with its observed frequency.
+  Predictions of 0.9 are calibrated when the outcome occurs nine times in ten. If it always occurs, they are underconfident, the safe direction for this gate.
+- **The coverage.** This is the share of decisions the gate makes without asking a person. Moving the thresholds closer narrows the abstain band.
+  Coverage rises until the last increase costs a false allow.
+
+```python
+verdicts = [(route(p, c, allow_below, deny_above, conf_floor), harmful)   # src/evaluation.py
+            for p, c, harmful in log]
+"coverage": sum(1 for v, _ in verdicts if v != "ask") / n,
+"false_allow": sum(1 for v, h in verdicts if v == "allow" and h),         # ran something harmful
+"false_deny": sum(1 for v, h in verdicts if v == "deny" and not h),       # cost one interruption
+```
+
+Choose thresholds from traffic logs. Run the gate without blocking anything and log every decision. Label the log, then sweep a grid of threshold pairs.
+Select the pair with the highest coverage and no false allows in that log.
+
+Offline tests check the mechanism. Raising the probability must never loosen the verdict. A missing answer must return `ask`.
+The labelled log checks the thresholds. Tests can pass with unreliable recorded probabilities. Neither check is sufficient on its own.
+Rerun the sweep when the model version or traffic mix changes. Either can change the probabilities without an obvious warning.
+
 ### The dataset decides what the score means
 
 A perfect environment running a bad dataset returns noise. Four rules survive across benchmarks.
@@ -228,6 +259,9 @@ How each system builds the test bed a score comes from.
   Mitigation: judges from different families, order swapped and graded twice, calibrated against a human-labeled gold set.
 - **Reward hacking.** The agent finds a route to the score that skips the work: keyword stuffing, flattering the judge, refusing hard cases.
   Mitigation: veto items in the rubric, process metrics beside outcome metrics, and periodic human spot checks.
+- **Calibration read as accuracy.** A calibrated gate can still return the wrong verdict on an individual case.
+  A gate that routes every case in a sample correctly can still be poorly calibrated. Neither metric replaces the other.
+  Mitigation: score verdicts and probabilities separately. Count false allows and false denies separately too.
 - **A suite that cannot see the change.** A 2 point improvement on 40 tasks is unmeasurable, so every round reads as inconclusive.
   Mitigation: grow the task set before iterating further.
 - **State leaking between runs.** No reset, or a shallow one, so one task's writes decide the next task's score.
@@ -241,9 +275,11 @@ How each system builds the test bed a score comes from.
 
 - [`evaluation.py`](src/evaluation.py): the environment with `reset` and a logged tool interface, a simulated user that releases one fact per turn, the episode protocol,
   grading (state checks, what was said, veto), Pass@k and Pass^k, the binomial noise band, and a paired comparison of two builds.
+  It also adds `brier`, `ece`, and `sweep` to score section 22's probabilistic edge.
 - [`test.py`](src/test.py): offline checks for reset restoring state, a protocol run where the agent has to ask for the order number,
   a safety veto failing a run whose outcome check passed, Pass@k against Pass^k on a flaky build,
-  and a regressed build scoring lower with the paired comparison naming what it broke.
+  and a regressed build scoring lower with the paired comparison identifying the failures.
+  They also check two logs with identical routes but different Brier and ECE scores. A threshold sweep checks that the last coverage increase costs a false allow.
 - [`demo.py`](src/demo.py): one graded episode. The model plays the support agent, its tool calls land in the environment,
   and the harness scores the state it left behind.
 
@@ -274,6 +310,11 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   graded by tests that must newly pass plus tests that must keep passing.
 - [GAIA](https://arxiv.org/abs/2311.12983): 466 questions with answers withheld for 300 of them, so the leaderboard cannot be scraped.
 - [BIG-bench](https://github.com/google/BIG-bench): the canary string carried in every task file to keep benchmark tasks out of web-scraped training data.
+- [Chow 1970](https://ieeexplore.ieee.org/document/1054406): how the reject option trades fewer errors for more unanswered cases.
+- [Selective classification for deep networks](https://arxiv.org/abs/1705.08500) (Geifman and El-Yaniv): how coverage relates to selective risk in a risk-coverage curve.
+- [Brier 1950](https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml): scoring probability forecasts with squared error.
+- [On calibration of modern neural networks](https://arxiv.org/abs/1706.04599) (Guo et al.): measuring expected calibration error and plotting reliability diagrams.
+  Accuracy and calibration can change independently.
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): checklist rubrics that name required facts, required reasoning steps, and the pitfalls that must be penalized.
 - [Claude Code](https://code.claude.com/docs): the reviewer and judge stages in the workflow contract, from tool schemas and documented behavior, not the source backup.
   Evaluation suites are not present in the source, so those cells are marked as reconstruction.

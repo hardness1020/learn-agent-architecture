@@ -124,7 +124,7 @@
 | 23 | [Evaluation](sections/23-evaluation/README.zh-CN.md)                         | 怎么知道这次改动有没有让它变好？    | Eval environments, resets, judges, Pass^k             |
 |    | **第 7 层 · 组合**                                                   |                                     |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/README.zh-CN.md)             | loop 怎么叠成一个能自己运转的系统？ | Verification loop, triggers, budgets, maturity levels |
-| 22 | [Graph engineering](sections/22-graph-engineering/README.zh-CN.md)           | 什么时候该让代码决定下一步，而不是问 model？ | Nodes, coded edges, cycles, agents as nodes           |
+| 22 | [Graph engineering](sections/22-graph-engineering/README.zh-CN.md)           | 什么时候该让代码决定下一步，而不是问 model？ | Nodes, coded edges, cycles, agents as nodes, typed decision edges|
 
 ---
 
@@ -211,6 +211,8 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): node、edge、cycle，以及把 agent 当 node。
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow 与 agent 的分界，加上五种 workflow 图形。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 用代码选路，以及 node 之间的 context 隔离。
+- [TypeSafe Jev docs](https://docs.typesafe.ai/api.md)：带类型的 decision model，request 的约定和答案的形状。
+  第 22 章在 [`decide.py`](sections/22-graph-engineering/src/decide.py) 把它接到 graph 的 edge 上。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》（李博杰著，Apache-2.0）。第 6 章是评估本章的主要出处。
 
 ---

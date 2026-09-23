@@ -60,6 +60,48 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 怎么选？原则就是省 token：分支条件写得出来的，就交给代码；model 调用只留给真的需要判断的 node。
 
+### Edge：用一次带类型的判断，取代写死的规则
+
+有些分支的条件，用代码写不出来。这条命令有没有破坏性？这张工单是不是在讲账单？
+分支本身还是 harness 说了算，但让 model 来选，就得多跑一整轮。
+
+第三种 edge 只问一件很具体的事。调用返回一个概率，代码拿这个概率去选分支：
+
+```python
+def route(p, conf, allow_below=0.10, deny_above=0.90, conf_floor=0.45):  # src/decide.py
+    if p is None:
+        return "ask"                               # no layer, or the call failed
+    if conf is not None and conf < conf_floor:
+        return "ask"                               # too flat to act on either way
+    if p >= deny_above:
+        return "deny"
+    if p <= allow_below:
+        return "allow"
+    return "ask"                                   # the band: this is where a person goes
+```
+
+分支仍然是 `route` 这段代码选的，本章开头第 2 点要的就是这件事。
+调用只负责补上一个概率，这个数字代码自己算不出来。
+
+- **阈值要设两个：** 只设一条线，答案再不确定也得给出结论。
+  设两条线，中间就空出一段弃权区间；落进这段区间，harness 就停下来问人。
+- **这一层只会收窄：** 它替已经存在的分支打分，不会多开一条，也不会放行一条。
+  key 没设、调用超时、答案格式不对，都等于没有数字，于是走 `ask`，也就是检查失效时 harness 的默认做法。
+- **confidence 只能把判定收紧：** confidence 低，判定就改成 `ask`，永远不可能改成 `allow`。
+
+TypeSafe 的 Jev 接收一份 state 和一组带类型的问题。
+选择题的答案里，每个选项各有一个概率；另外附一个 confidence，表示这些概率有多集中在某一个选项上。
+一次请求里的问题都在同一个 pass 里答完，所以问五件事和问一件事的成本差不多。
+返回的内容里没有生成的文字，也没有 chain of thought 要 harness 去解析。
+什么都不生成，这次调用就小到可以挂在 harness 每一步都会走过的 edge 上；换成一次完整的 model 调用，就挂不上去了。
+
+厂商自己的文件写了三个限制。带类型的答案保证格式工整，但它照样可能是错的。
+calibration 说的是一整批答案，它证明不了眼前这一个答案是对的。
+model 是把 state 当数据读的，不会把它当成有敌意的输入，所以有人写一段文字来带风向，答案真的会被带走。
+
+条件写得成代码，就用规则；条件需要判断，就问一次带类型的问题；结果落在弃权区间里，就交给人。
+第 3 章的 permission 规则照样有效。带类型的检查只能在这些规则允许的范围里再收紧，不能反过来放宽。
+
 ### 常见的图形
 
 出处里叫得出名字的 workflow pattern，其实都是图形：
@@ -90,6 +132,7 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 - worker 和 checker 分属不同 node 是第 6 章；并行的分支用第 15 章的 worktree 隔离。
 - step budget 和交回给人的约定是第 21 章。
 - trace 交给第 20 章的 telemetry：看哪些 edge 有 fire，就知道哪些分支是死的。
+- 带类型的 edge 好不好用，全看那两个阈值；而阈值是某个人挑出来的常数。第 23 章拿标注过的日志替它们打分。
 
 可执行程序接的就是上面那张图：
 
@@ -160,6 +203,12 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 
 - **Model 当 router（Model as router）：** 把选路交给 model，烧 token、增加延迟，而且每次跑不一样。最上游选错一次，后面全部跟着错。
   缓解：转移用代码判断；model 调用留给需要判断的 node。
+- **把概率当成证据（Probability read as proof）：** 带类型的答案永远格式工整，所以看起来像已经拍板了，答错的时候也一样。
+  缓解：中间那段问人的区间留着；这一层只准收掉分支，永远不准它放行一条分支。
+- **证据是 agent 自己写的（Evidence the agent can write）：** 交给带类型 edge 的那份 state 里有 model 自己的输出，于是这趟执行可以自己说服自己过关。
+  缓解：那份 state 只用 harness 自己掌握的字段拼出来；这一层当 router 用，不能当安全边界。
+- **阈值只配过一次（Thresholds set once）：** 两个常数是照某一版 model、某一种流量配比配出来的，后来两边都在变，它们却没再动过。
+  缓解：先只记录判定、不真的照着做，再拿这份记录重新配一次；问题的文字要跟阈值一起做版本管理（第 23 章）。
 - **过度画图（Over-graphing）：** 需要探索的任务被固定的图框住，解法要走的路被挡掉。
   缓解：只把本来就要强制执行的结构写进图里；开放式的工作留给普通的 loop。
 - **没有失败的路（No failure edge）：** 负责检查的 node 遇到 FAIL 却无路可送，烂输出就一路流到下游。
@@ -181,8 +230,13 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 [`src/`](src/) 把 21 带了过来，并加上：
 
 - [`graph.py`](src/graph.py)：`run_graph`（node 的 dispatch map、固定和条件式的 edge、一路传下去的 state、step budget）和 `agent_node`，把内层 loop 挂成一个 node。
-- [`test.py`](src/test.py)：离线检查串接顺序和 state 合并、纯代码的 routing、cycle 撞到 budget 就停，以及 agent node 每次经过都用全新的 `messages[]`。
-- [`demo.py`](src/demo.py)：照着图实际跑一次：code node 分类、代码 edge 选路、agent node 作答、第 21 章的 checker 评分，没过就带着 feedback 绕回去。
+- [`decide.py`](src/decide.py)：`route` 用两个阈值判定，中间留一段弃权区间；`decision_edge` 把判定接到分支上。
+  离线用的 asker 返回录好的答案，实时的那个走标准库 http。
+- [`test.py`](src/test.py)：离线检查涵盖串接顺序、state 合并、纯代码的 routing、cycle 的 budget，以及 agent node 每次经过都拿到全新的 `messages[]`。
+  另外还检查三路分流的那段区间、标成危险的输入一律不给 allow、答案没拿到就走 `ask`、判定的单调性，还有打扰人的次数上限。
+- [`demo.py`](src/demo.py)：照着图跑一次。code node 先分类，带类型的 edge 判断能不能往下走，agent node 作答，
+  第 21 章的 checker 打分，判定没过就带着 feedback 绕回去。
+  没设 `TYPESAFE_API_KEY` 时，这个关卡读的是录好的答案。跑 demo 只需要 Anthropic 的 key。
 
 loop 本身完全没改。什么时候轮到它跑，由图决定。
 
@@ -203,6 +257,12 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
   `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`：每次执行由模型现写脚本，不留下任何图。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 与 budget、`run/benchmarks/swebench.py`。
+- [TypeSafe Jev 文件](https://docs.typesafe.ai/api.md)：请求里放的是一份 state 和一组带类型的问题；
+  选择题的答案里，每个选项一个概率，另外附一个 confidence。
+  [Limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13) 讲有敌意的 state 和 context rot。
+  [System One concepts](https://docs.typesafe.ai/concepts/how-to-build-with-system-one) 讲它的定位：
+  这是给软件用的 model，不是给 agent 用的，它永远不会自己决定下一步做什么。
+  产品页上写的延迟和价格是厂商自己跑出来的，没有人复现过，所以本章引用的是它的约定和限制，不是那些数字。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版为准）：
   在同一条 trajectory 上做多阶段角色转换：每个 phase 一份 system prompt 和一套 tool，phase 之间用 tool call 当关卡，review 可以绕回实现。
   这个做法的证据只有书里自己做的实验。同一章主要用的词是「collaboration topology」和「orchestration」。
