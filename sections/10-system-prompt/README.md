@@ -186,6 +186,7 @@ How the prompt is composed each turn.
 - **Too many cache keys.** Each runtime condition before the boundary doubles the prefixes that have to warm separately. Keep conditional sections after it.
 - **Stale status blocks.** Appended state accumulates and the model may act on an old copy. Mark the latest block, or replace it and accept the cache rebuild.
 - **External content read as instructions.** Tag tool results by source and say tagged content is data. Section 3's permission checks stay the real boundary.
+- **Entrypoint changes the prompt.** One build assembles differently per launch mode. Claude Code sends 26,131 characters and 35 tools interactively, 20,806 and 29 under `-p`.
 
 ---
 
@@ -221,3 +222,4 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
   the agent status bar and its replace-versus-append trade-off, and context-layer injection defense with principal loyalty.
   The book's status bar and loyalty measurements are the author's own benchmarks, so the numbers are single-source and are not repeated here.
 - [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [OrcaPromptVault](https://github.com/Continuum-AI-Corp/OrcaPromptVault): wire recordings of assembled prompts, per harness and entrypoint, with reproduce steps.

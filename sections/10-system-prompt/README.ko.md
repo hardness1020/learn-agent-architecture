@@ -186,6 +186,7 @@ prompt 계층은 확률을 낮춥니다. 실행 계층은 피해를 한정합니
 - **cache 키가 너무 많음.** 경계 앞의 런타임 조건 하나마다 따로 데워야 할 앞부분이 두 배가 됩니다. 조건부 섹션은 경계 뒤에 둡니다.
 - **낡은 상태 블록.** 덧붙인 상태가 쌓이면 모델이 옛 사본을 보고 행동할 수 있습니다. 최신 블록을 표시하거나, 교체하고 cache 재구축을 감수합니다.
 - **외부 내용을 지시로 읽음.** tool 결과에 출처 태그를 붙이고 태그가 붙은 내용은 데이터라고 명시합니다. 진짜 경계는 여전히 section 3의 permission 검사입니다.
+- **entrypoint에 따라 prompt가 달라짐.** 같은 빌드라도 실행 방식에 따라 다르게 조립됨. Claude Code는 대화형에서 26,131자와 tool 35개, `-p`에서는 20,806자와 29개.
 
 ---
 
@@ -221,3 +222,4 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
   agent 상태 표시줄과 교체 대 덧붙이기의 절충, principal loyalty를 포함한 context 계층의 injection 방어.
   책의 상태 표시줄과 충성 관련 측정치는 저자 본인의 benchmark라서 출처가 하나뿐이므로 여기서는 옮기지 않습니다.
 - [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): 섹션 구성.
+- [OrcaPromptVault](https://github.com/Continuum-AI-Corp/OrcaPromptVault): harness와 entrypoint별로 기록한 완성 prompt. 파일마다 재현용 명령이나 runbook이 함께 있음.

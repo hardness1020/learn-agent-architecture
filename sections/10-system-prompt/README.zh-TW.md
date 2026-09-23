@@ -186,6 +186,7 @@ prompt 層降低發生機率，執行層限制損害範圍。
 - **cache key 變太多份：**邊界之前每多一個條件，要各自暖機的前綴就翻倍。有條件的段落一律放到邊界之後。
 - **狀態區塊過期：**追加式的狀態會越積越多，模型可能照著舊的那一份行動。標清楚哪一份最新，或是就地換掉並接受 cache 重建。
 - **外部內容被當成指令：**tool 結果照來源加上標記，並在 prompt 裡說明標記過的就是資料。真正的邊界仍然是第 3 章的權限檢查。
+- **入口不同，拼出來的 prompt 也不同：**同一個 build 按啟動方式裝配。Claude Code 互動式發 26,131 字元 35 個 tool，`-p` 下是 20,806 字元 29 個。
 
 ---
 
@@ -221,3 +222,4 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
   agent 狀態列以及就地替換和往後追加之間的取捨，還有 context 層的注入防禦與 principal loyalty。
   書中的狀態列與 loyalty 數據都是作者自己的評測，屬於單一來源，這裡不引用那些數字。
 - [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [OrcaPromptVault](https://github.com/Continuum-AI-Corp/OrcaPromptVault)：按 harness 和入口分別錄下的成品 prompt，每份附可重跑的指令或 runbook。
