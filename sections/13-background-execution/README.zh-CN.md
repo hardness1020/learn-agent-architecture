@@ -96,20 +96,20 @@ background.drain_into(messages, runtime)               # src/loop.py
 
 以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
 
-**打断与安全点：**有些消息不能等目前这个工具调用跑完。
+**打断与安全点：** 有些消息不能等目前这个工具调用跑完。
 用户的修正、一个取消、一则警报，都可能在调用跑到一半时进来。一种做法是把所有进来的消息都变成同一条 stream 上的 event。
 loop 只在安全点（safe point）去读这条 stream，也就是一则工具结果刚跑完、下一次 model 调用还没发出的那个空档。
 调用跑到一半硬塞会弄坏对话记录，所以 event 得等那个空档。
 
 event 有多急，决定它要等哪一个空档：
 
-- **Queue：**等下一个空档。完成通知和不急的消息都走这条。
-- **Cancel：**直接中止进行中的调用，当场空出一个空档。适合那种再跑下去也白跑的修正。
-- **Parallel：**丢到旁边的 loop 去跑，主 loop 不动。
+- **Queue：** 等下一个空档。完成通知和不急的消息都走这条。
+- **Cancel：** 直接中止进行中的调用，当场空出一个空档。适合那种再跑下去也白跑的修正。
+- **Parallel：** 丢到旁边的 loop 去跑，主 loop 不动。
 
 分类这件事本身不贵。用一个小 model 就能把 event 分成这三类，每则 event 只多花一次调用。
 
-**打断占位：**取消完还要多做一步，对话记录才会是合法的。
+**打断占位：** 取消完还要多做一步，对话记录才会是合法的。
 被中止的那个调用留下一个 `tool_use` block，却没有对应的 `tool_result`，而下一次 model 调用需要这一对是完整的。
 ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `tool_result`，内容写这个调用被中断了。
 这跟上面那条不重用 id 的规则不冲突。占位的那则当下把这一对收干净，真的结果照样稍后用自己的 notification 送进来。
@@ -134,13 +134,13 @@ ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `too
 
 ## 常见问题
 
-- **互动式提示卡住（Interactive prompt stalls）：**某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非互动方式重跑。
-- **完成消息遗失（Lost completion）：**某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
-- **配对错误的 notification（Mispaired notification）：**重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
-- **被 kill 之后的副作用（Side effect after a kill）：**timeout 或取消都不会告诉你那个调用到底做成了没。盲目重试可能扣两次款。先查状态再写入，或带上 idempotency key。
-- **批次 event 稀释注意力（Batched events dilute attention）：**一次 drain 可能把好几则 notification 并进同一个 turn，model 就只响应最后一则。帮每则 event 编号，再加一行摘要。
-- **并行太多（Too much concurrency）：**太多后台 task 会耗尽资源。加上 kill 路径和上限。
-- **离场时的 process 泄漏（Process leak on exit）：**后台工作可能活得比 session 还久。注册清理机制。
+- **互动式提示卡住（Interactive prompt stalls）：** 某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非互动方式重跑。
+- **完成消息遗失（Lost completion）：** 某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
+- **配对错误的 notification（Mispaired notification）：** 重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
+- **被 kill 之后的副作用（Side effect after a kill）：** timeout 或取消都不会告诉你那个调用到底做成了没。盲目重试可能扣两次款。先查状态再写入，或带上 idempotency key。
+- **批次 event 稀释注意力（Batched events dilute attention）：** 一次 drain 可能把好几则 notification 并进同一个 turn，model 就只响应最后一则。帮每则 event 编号，再加一行摘要。
+- **并行太多（Too much concurrency）：** 太多后台 task 会耗尽资源。加上 kill 路径和上限。
+- **离场时的 process 泄漏（Process leak on exit）：** 后台工作可能活得比 session 还久。注册清理机制。
 
 ---
 

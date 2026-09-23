@@ -92,11 +92,11 @@ loop 没有改变。model 就像调用其他任何工具一样，调用 `TaskCre
 
 ## 常见问题
 
-- **依赖循环（Dependency cycle）：**两个 task 可能互相阻挡。让图保持无环，或加上循环检查。
-- **认领竞态（Claim race）：**两个 agent 可能抢同一个 task。把认领路径加锁。
-- **卡在 in_progress 的孤儿 task：**worker 可能在认领后死掉。在 worker 离开时清掉 ownership。
-- **无效记录（Invalid record）：**手动编辑或旧版的文件可能不符合 schema。安全地解析，并跳过坏掉的记录。
-- **持久系统被关闭：**in-memory todo 仍可能遗失。对必须存活的工作，改用以磁盘为后盾的 task。
+- **依赖循环（Dependency cycle）：** 两个 task 可能互相阻挡。让图保持无环，或加上循环检查。
+- **认领竞态（Claim race）：** 两个 agent 可能抢同一个 task。把认领路径加锁。
+- **卡在 in_progress 的孤儿 task：** worker 可能在认领后死掉。在 worker 离开时清掉 ownership。
+- **无效记录（Invalid record）：** 手动编辑或旧版的文件可能不符合 schema。安全地解析，并跳过坏掉的记录。
+- **持久系统被关闭：** in-memory todo 仍可能遗失。对必须存活的工作，改用以磁盘为后盾的 task。
 
 ---
 

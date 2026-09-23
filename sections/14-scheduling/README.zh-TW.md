@@ -117,11 +117,11 @@ for task in sched.drain():                            # src/demo.py · between t
 
 以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
 
-**時鐘做得到的極限：**heartbeat 只有一個參數要調，就是間隔。它同時決定了帳單和最糟情況下的延遲，這兩件事會互相拉扯。
+**時鐘做得到的極限：** heartbeat 只有一個參數要調，就是間隔。它同時決定了帳單和最糟情況下的延遲，這兩件事會互相拉扯。
 間隔短，model 一直醒過來，多半什麼也沒發現。間隔長，便宜，但消息晚。
 換哪個間隔都解不掉。時鐘是在取樣狀態，不是在盯著事件，所以它只知道自己上次是什麼時候看的，不知道事情是什麼時候發生的。
 
-**能用推播就用推播：**來源如果能主動呼叫 agent，事情發生的當下就觸發，輪詢成本歸零。
+**能用推播就用推播：** 來源如果能主動呼叫 agent，事情發生的當下就觸發，輪詢成本歸零。
 所以順序是：來源支援推播就用推播，不支援才用 heartbeat，真的跟時間綁在一起的工作（例如週一的報表）才用 cron。
 入站推播那一側由第 19 章負責。
 
@@ -144,13 +144,13 @@ for task in sched.drain():                            # src/demo.py · between t
 
 ## 常見問題
 
-- **重複 fire（Double fire）：**一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
-- **許多 schedule 一起 fire：**給週期性 task 加上決定性的 jitter，把觸發時間錯開。
-- **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
-- **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
-- **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。
-- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回報，使用者就學會忽略它。讓 prompt 自己判斷什麼值得送出，其餘時候就不出聲。
-- **兩次 tick 之間的事件：**時鐘取樣的是狀態。在兩次 tick 之間出現又消失的變化，它看不到。改讀 log 或游標，或把來源換成推播。
+- **重複 fire（Double fire）：** 一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
+- **許多 schedule 一起 fire：** 給週期性 task 加上決定性的 jitter，把觸發時間錯開。
+- **durable 不等於永遠開機：** 本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
+- **cron 表達式有誤（Bad cron expression）：** 在 create 時驗證，並跳過無效的已載入項目。
+- **loop 正忙：** 把 prompt 放進 queue，等 turn 之間再拿出來跑。
+- **通知疲乏（Alert fatigue）：** heartbeat 每次 tick 都回報，使用者就學會忽略它。讓 prompt 自己判斷什麼值得送出，其餘時候就不出聲。
+- **兩次 tick 之間的事件：** 時鐘取樣的是狀態。在兩次 tick 之間出現又消失的變化，它看不到。改讀 log 或游標，或把來源換成推播。
 
 ---
 

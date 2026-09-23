@@ -51,9 +51,9 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 每个 node 都在纯代码和完整 agent 之间选一个位置：
 
-- **Code node：**解析、验证、固定的 API 调用。决定性的，不花 token。
-- **Model node：**一次 LLM 调用，例如分类器。有限度的判断。
-- **Agent node：**一整个第 1 章的 loop，带着 tool。开放式的判断，但被固定在一个位置上。
+- **Code node：** 解析、验证、固定的 API 调用。决定性的，不花 token。
+- **Model node：** 一次 LLM 调用，例如分类器。有限度的判断。
+- **Agent node：** 一整个第 1 章的 loop，带着 tool。开放式的判断，但被固定在一个位置上。
 
 `agent_node` 把内层 loop 包装成一个 node。每次经过时都会根据 state 生成 prompt，再用全新的 `messages[]` 执行 `run_turn`，
 所以这个 node 只看得到 prompt builder 给它的部分，不是整趟执行。
@@ -64,11 +64,11 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 出处里叫得出名字的 workflow pattern，其实都是图形：
 
-- **Prompt chaining：**一串 node 排成一条路，中间用代码把关。
-- **Routing：**一条条件式 edge，分流到各个专门的 node。
-- **Parallelization：**几条同时跑的分支在一个 node 会合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
-- **Orchestrator-workers：**一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是动态的，但形状仍然是图。
-- **Evaluator-optimizer：**一个 worker node、一个 checker node，加一条往回的 edge。这就是第 21 章的验证 loop，放进图里变成一个子图。
+- **Prompt chaining：** 一串 node 排成一条路，中间用代码把关。
+- **Routing：** 一条条件式 edge，分流到各个专门的 node。
+- **Parallelization：** 几条同时跑的分支在一个 node 会合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
+- **Orchestrator-workers：** 一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是动态的，但形状仍然是图。
+- **Evaluator-optimizer：** 一个 worker node、一个 checker node，加一条往回的 edge。这就是第 21 章的验证 loop，放进图里变成一个子图。
 
 各家的讲法还没统一。同样的东西，`ai-agent-book` 用的词是「collaboration topology」和「orchestration」，「graph engineering」它只在术语注记里提了一句。
 本章还是用自己的名字，因为它讲的就是一张写在代码里的图。你去看别的来源时，对照的是机制，不是那个词。
@@ -112,32 +112,32 @@ edges = {
 
 以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
 
-**Phase node：**phase node 把一件工作拆成好几个阶段来跑，而每个阶段共享同一份 `messages[]`。
+**Phase node：** phase node 把一件工作拆成好几个阶段来跑，而每个阶段共享同一份 `messages[]`。
 Explore、implement、review 是同一件工作的三个阶段，不是三件工作。
 前一个阶段查到什么，trajectory 就带到下一个阶段，所以没有哪个阶段需要把任务从头再读一遍。
 
-**每个 phase 的 tool：**每个 phase 有自己的 system prompt，也有自己的一套 tool，换 phase 的时候 harness 两样一起换掉。
+**每个 phase 的 tool：** 每个 phase 有自己的 system prompt，也有自己的一套 tool，换 phase 的时候 harness 两样一起换掉。
 history 原封不动留着，所以没有东西要打包给下一个 phase。书里写的三个 phase 是：
 
-- **Explore：**读取和搜索。
-- **Implement：**编辑和执行。
-- **Review：**读取，再加一个返回结论的 tool。
+- **Explore：** 读取和搜索。
+- **Implement：** 编辑和执行。
+- **Review：** 读取，再加一个返回结论的 tool。
 
-**Gate tool：**model 想离开一个 phase，就调用一个 gate tool，例如 `finish_exploring`。
+**Gate tool：** model 想离开一个 phase，就调用一个 gate tool，例如 `finish_exploring`。
 harness 把这个调用当成 edge，接着开始下一个 phase。gate 是唯一的出口，所以一个 phase 什么时候结束，是 harness 说了算，不是 model。
 
-**路线：**先跑 explore，再跑 implement，最后 review。review 没过就把执行送回 implement，
+**路线：** 先跑 explore，再跑 implement，最后 review。review 没过就把执行送回 implement，
 implement 接着往下做，review 写的东西本来就在 trajectory 里。用本章的讲法，这就是一条路加一条往回的 edge，
 跟前面的 evaluator-optimizer 同一个形状。
 
-**要挂哪一种：**分支之间没关系，就用全新的 `messages[]`；几个 node 是同一件工作的不同阶段，就留同一条 trajectory。
+**要挂哪一种：** 分支之间没关系，就用全新的 `messages[]`；几个 node 是同一件工作的不同阶段，就留同一条 trajectory。
 全新的 `messages[]` 让每个 node 的 window 都很小，分支之间也互不干扰。
 只保留一条 trajectory 的好处，是前面找到的信息仍然可见；代价是流程越长，占用的 context window 就越多。这属于 context 分配问题（第 8 章）。
 
-**这样算不算 multi-agent：**书把这个做法算成 multi-agent，理由是每个 phase 的 prompt 和 tool 都换掉了。
+**这样算不算 multi-agent：** 书把这个做法算成 multi-agent，理由是每个 phase 的 prompt 和 tool 都换掉了。
 这个 repo 则算成同一个 agent 换了 prompt 和 tool。用哪个名字，机制都是同一个，所以引用这个结果的时候，先讲清楚你用的是哪个定义。
 
-**只有一个来源：**这个做法的依据是书里自己做的实验，没有第三方的报告佐证。
+**只有一个来源：** 这个做法的依据是书里自己做的实验，没有第三方的报告佐证。
 
 ---
 
@@ -158,20 +158,20 @@ implement 接着往下做，review 写的东西本来就在 trajectory 里。用
 
 ## 常见问题
 
-- **Model 当 router（Model as router）：**把选路交给 model，烧 token、增加延迟，而且每次跑不一样。最上游选错一次，后面全部跟着错。
+- **Model 当 router（Model as router）：** 把选路交给 model，烧 token、增加延迟，而且每次跑不一样。最上游选错一次，后面全部跟着错。
   缓解：转移用代码判断；model 调用留给需要判断的 node。
-- **过度画图（Over-graphing）：**需要探索的任务被固定的图框住，解法要走的路被挡掉。
+- **过度画图（Over-graphing）：** 需要探索的任务被固定的图框住，解法要走的路被挡掉。
   缓解：只把本来就要强制执行的结构写进图里；开放式的工作留给普通的 loop。
-- **没有失败的路（No failure edge）：**负责检查的 node 遇到 FAIL 却无路可送，烂输出就一路流到下游。
+- **没有失败的路（No failure edge）：** 负责检查的 node 遇到 FAIL 却无路可送，烂输出就一路流到下游。
   缓解：每个检查 node 都给一条带 budget 的往回 edge（第 21 章）。
-- **没有上限的 cycle（Unbounded cycle）：**没有上限的重试 edge 会永远绕下去。缓解：harness 强制执行的 step budget；budget 用完就交给人。
-- **State 膨胀（State bloat）：**每个 node 都把完整输出倒进共享的 state，后面的 node 被淹没。
+- **没有上限的 cycle（Unbounded cycle）：** 没有上限的重试 edge 会永远绕下去。缓解：harness 强制执行的 step budget；budget 用完就交给人。
+- **State 膨胀（State bloat）：** 每个 node 都把完整输出倒进共享的 state，后面的 node 被淹没。
   缓解：严格的 state 边界；node 只读需要的子集，只返回自己的更新（第 8 章）。
-- **跑到一半挂掉（Mid-run death）：**一张长图在第七个 node 挂掉，重来却从第一个 node 开始。
+- **跑到一半挂掉（Mid-run death）：** 一张长图在第七个 node 挂掉，重来却从第一个 node 开始。
   缓解：记下每个 node 的输出；续跑时跑完的 node 从记录重放（第 11、12 章）。
-- **Phase 走不完（Phase that never ends）：**model 一直不调用 gate tool，这个 phase 就用同一份 prompt、同一套 tool 一直做下去，只有 budget 停得了它。
+- **Phase 走不完（Phase that never ends）：** model 一直不调用 gate tool，这个 phase 就用同一份 prompt、同一套 tool 一直做下去，只有 budget 停得了它。
   缓解：gate 是唯一的出口；每个 phase 各自有 step budget；budget 用完就往下一个 phase 走，或者交给人。
-- **Trajectory 背着每个 phase（Trajectory that carries every phase）：**只有一条 trajectory，每过一个 phase 就长一截。里面还留着现在没挂的 tool 的调用记录，model 可能会再叫一次。
+- **Trajectory 背着每个 phase（Trajectory that carries every phase）：** 只有一条 trajectory，每过一个 phase 就长一截。里面还留着现在没挂的 tool 的调用记录，model 可能会再叫一次。
   缓解：在 phase 的 prompt 里写清楚现在是哪个 phase、有哪些 tool；叫到没挂的 tool 就回一个清楚的错误；跑完的 phase 拿去 compact（第 8 章）。
 
 ---

@@ -45,9 +45,9 @@ loop 不会改变。subagent 只是另一个调用 loop 的 tool handler。
 
 有三个特性很重要：
 
-- **全新 context：**child 不会继承 parent 的 transcript。parent 也不会继承 child 的轨迹。
-- **继承的权限：**child 会复制 parent 的 permission mode 和 allow rules。context 隔离不等于权限隔离。
-- **递归上限：**这个 demo 从 child registry 中省略了 `Agent`，所以 child 无法再生出另一个 child。
+- **全新 context：** child 不会继承 parent 的 transcript。parent 也不会继承 child 的轨迹。
+- **继承的权限：** child 会复制 parent 的 permission mode 和 allow rules。context 隔离不等于权限隔离。
+- **递归上限：** 这个 demo 从 child registry 中省略了 `Agent`，所以 child 无法再生出另一个 child。
 
 ---
 
@@ -69,11 +69,11 @@ loop 不会改变。subagent 只是另一个调用 loop 的 tool handler。
 
 ## 常见问题
 
-- **摘要遗漏信息：**child 可能压缩过头。要求它把重要发现写到磁盘上。
-- **失控递归：**child 生 child 可能无上限地成长。从 child registry 省略 `Agent` tool，或强制设一个深度上限。
-- **child 停不下来：**child 和 parent 有一样的停止风险。给每个 child 自己的 turn 或 token 上限。
-- **误以为有权限隔离：**child 仍然需要正常的 permission gate。不要因为 context 是分开的就跳过它。
-- **孤儿异步 child：**一个后台 child 可能在 parent 已经往前走之后才结束。用一笔 task 记录来追踪它。
+- **摘要遗漏信息：** child 可能压缩过头。要求它把重要发现写到磁盘上。
+- **失控递归：** child 生 child 可能无上限地成长。从 child registry 省略 `Agent` tool，或强制设一个深度上限。
+- **child 停不下来：** child 和 parent 有一样的停止风险。给每个 child 自己的 turn 或 token 上限。
+- **误以为有权限隔离：** child 仍然需要正常的 permission gate。不要因为 context 是分开的就跳过它。
+- **孤儿异步 child：** 一个后台 child 可能在 parent 已经往前走之后才结束。用一笔 task 记录来追踪它。
 
 ---
 

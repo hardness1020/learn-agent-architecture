@@ -101,11 +101,11 @@ loop 與 subagent 路徑不需要特殊邏輯。只有工具看到的工作目�
 
 ## 常見問題
 
-- **slug 裡的路徑穿越：**在路徑組合或 git 指令之前先驗證。
-- **移除時默默遺失：**除非使用者明確捨棄變更，否則保留有變更的 worktree。
-- **cwd 在 agent 之間外洩：**對並行的 subagent 使用 context-local 的 cwd。
-- **陳舊 worktree 堆積：**只清掃已知的臨時 worktree。
-- **fork 後讀到陳舊內容：**告訴 fork 出來的子行程重新讀取 worktree 裡的檔案。
+- **slug 裡的路徑穿越：** 在路徑組合或 git 指令之前先驗證。
+- **移除時默默遺失：** 除非使用者明確捨棄變更，否則保留有變更的 worktree。
+- **cwd 在 agent 之間外洩：** 對並行的 subagent 使用 context-local 的 cwd。
+- **陳舊 worktree 堆積：** 只清掃已知的臨時 worktree。
+- **fork 後讀到陳舊內容：** 告訴 fork 出來的子行程重新讀取 worktree 裡的檔案。
 
 ---
 
