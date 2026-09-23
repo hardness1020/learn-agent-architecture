@@ -8,11 +8,11 @@
 
 如果系统只有一次 model call，评估很单纯：送入 prompt，把输出和标准答案比较，再计算答对比例。
 
-换成 agent 后，这种方法就不够了。agent 会执行多轮对话，主动向用户补问信息，也会通过 tool 修改环境中的数据。相同结果可能经由不同路径完成，而且即使 agent、harness、prompt 和 model 全都相同，同一个任务跑两次仍可能得到不同结果。
+换成 agent 后，这种方法就不够了。agent 会执行多轮对话，主动向用户补问信息，也会通过 tool 修改环境中的数据。同样的结果，可能是用不同做法做出来的；而且就算 agent、harness、prompt 和 model 全都一样，同一个任务跑两次也可能跑出不一样的答案。
 
 因此，agent evaluation 需要的不是一串 prompt，而是一个完整的测试环境：可 reset 的 state、模拟用户、控制对话流程的 protocol，以及检查最终环境状态的 rubric。
 
-少了这些设计，仍然可以算出分数，但数字未必有意义。题目可能早已进入训练数据，新版本高出的 3 个百分点也可能只是抽样波动；甚至分数看似很好，agent 却在实际执行时退款了用户从未提过的订单。
+少了这些设计，仍然可以算出分数，但数字未必有意义。题目可能早已进入训练数据，新版本高出的 3 个百分点也可能只是抽样波动；甚至分数看似很好，agent 却把用户从未提过的订单退了款。
 
 ---
 
@@ -29,7 +29,7 @@
 - **Rubric：** 一次跑完以后，怎么换算成分数。
 - **Interaction protocol：** 谁什么时候说话，以及这一次什么时候结束。
 
-第 20 章的评估接口是 `(input, grade)`：输入一个字符串、得到一个字符串，再计算 pass rate。本章保留同一个入口，但在底层补上完整的评估环境。
+第 20 章的评估接口是 `(input, grade)`：输入一个字符串、得到一个字符串，再计算 pass rate。本章保留同一个入口，只是这次入口后面接的是一整套评估环境。
 
 ### 添加：环境和它的 reset
 
@@ -125,7 +125,7 @@ def grade(task, run):                                  # src/evaluation.py
 有明确终态的任务，看 state 就够了。换成一段写出来的文字，没有东西可以直接比对，就交给另一个 model 照 rubric 打分。
 打分准不准，几乎都看 rubric 怎么写：
 
-1. **扎根于专家：** 写进去的是这个领域的专家真正要检查的东西，不是文字通不通顺。
+1. **照专家的标准写：** 写进去的是这个领域的专家真正要检查的东西，不是文字通不通顺。
 2. **涵盖要够全：** 正确性、完整性、安全性都要顾到，常犯的错要直接写出来，不能让评判者自己意会。
 3. **有权重、有否决：** 标准分成必要、重要、可选，像编造事实这种否决项一出现，总分直接归零。
 4. **每条都自己讲得清楚：** 每一项都要能直接判断，不靠评判者自己的品味。
@@ -256,9 +256,9 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
   缓解：换不同家族的 judge、顺序对调各评一次、先用人工标注的 gold set 校准。
 - **钻分数的漏洞（Reward hacking）：** agent 找到拿分的捷径，跳过真正的工作：塞关键字、讨好 judge、遇到难题就回避。
   缓解：rubric 里放否决项、结果指标旁边摆过程指标，再定期人工抽检。
-- **把 calibration 当成准确率（Calibration read as accuracy）：** 概率 calibrate 得很好的 gate，在你眼前这一笔上照样可能答错；
-  在这批样本上每一笔都选对的 gate，calibration 也可能很差。这两个数字谁都替代不了谁。
-  缓解：判定和概率分开评，false allow 和 false deny 也分开算。
+- **把 calibration 当成准确率（Calibration read as accuracy）：** calibrate 得好的 gate，单看某一笔照样可能判错；
+  在一批样本上每一笔都选对的 gate，calibration 也可能很差。这两个数字谁都替代不了谁。
+  缓解：判定和概率分开评；false allow 和 false deny 也分开数。
 - **这套评估看不出改动（A suite that cannot see the change）：** 40 个任务上 2 个百分点的提升根本量不出来，每一轮都只能写「看不出差别」。
   缓解：先把任务集扩大，再继续迭代。
 - **上一次的 state 留到下一次（State leaking between runs）：** 没有 reset，或只 reset 了浅的一层，上一个任务写下的东西就决定了下一题的分数。
@@ -271,8 +271,8 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
 [`src/`](src/) 把 22 带了过来，并加上：
 
 - [`evaluation.py`](src/evaluation.py)：带 `reset` 和调用记录的环境、一轮只释出一项信息的模拟用户、episode 的 protocol、
-  打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带、两份 build 的配对比较，
-  以及替第 22 章那条带概率的 edge 准备的 `brier`、`ece` 和 `sweep`。
+  打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带，以及两份 build 的配对比较。
+  另外加上 `brier`、`ece` 和 `sweep`，用来评第 22 章那条带概率的 edge。
 - [`test.py`](src/test.py)：离线检查 reset 有没有把 state 还原、protocol 跑一次时 agent 必须先问订单编号、
   结果检查明明有过却被安全否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别，
   以及退步的 build 分数更低、配对比较能指出坏在哪几题。
