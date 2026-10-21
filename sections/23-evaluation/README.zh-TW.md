@@ -94,11 +94,13 @@ prompt 裡會交代它：照角色回話、只講這一步需要講的、腳本�
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **看終態，不看路徑：** 檢查讀的是最後的 state，只要走到那個狀態，中間怎麼走都算過。標準解只是其中一種解法，不是規定要走的那一條。
@@ -331,6 +333,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   要有哪些推理步驟，以及哪些常見錯誤必須扣分。
 - [Claude Code](https://code.claude.com/docs)：workflow 約定裡的 reviewer 與 judge 階段。
   內容依據 tool schema 和文件記載的行為，不是 source backup。評估套件不在原始碼裡，那幾格都標成重建。
-- [harness²](https://github.com/google-research/harness2) 的 1cfe254 版：judge 失敗和真正的零分分開記（harness2/core/judge.py、harness2/core/report.py）、
-  agent 下載 rubric 的警告（docs/EXPERIMENTS.md）、improver 能讀什麼的界線（harness2/core/context.py）、挑 candidate 時不讓 judge 知道出處（harness2/core/selection.py），
-  以及只讀之前任務的紀錄、每一組實驗條件各用一個 library（harness2/core/library.py、harness2/core/schedule.py）。
+- [harness²](https://github.com/google-research/harness2) 的 `1cfe254` 版：judge 失敗和真正的零分分開記（`harness2/core/judge.py`、`harness2/core/report.py`）、
+  agent 下載 rubric 的警告（`docs/EXPERIMENTS.md`）、improver 能讀什麼的界線（`harness2/core/context.py`）、挑 candidate 時不讓 judge 知道出處（`harness2/core/selection.py`），
+  以及只讀之前任務的紀錄、每一組實驗條件各用一個 library（`harness2/core/library.py`、`harness2/core/schedule.py`）。

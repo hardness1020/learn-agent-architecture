@@ -96,11 +96,13 @@ LLM에는 배역에 맞게 답하고, 지금 단계에 필요한 것만 내놓�
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **경로가 아니라 결과.** 검사는 최종 상태만 읽습니다. 그 상태에 닿기만 하면 어떤 경로로 가든 통과합니다. 참조 해답은 task를 푸는 한 가지 방법일 뿐, 그렇게 풀라는 요구가 아닙니다.
@@ -332,6 +334,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): 반드시 포함할 사실, 반드시 거칠 추론 단계, 반드시 감점할 함정을 적어 둔 체크리스트 rubric.
 - [Claude Code](https://code.claude.com/docs): workflow 계약에 있는 검토자 단계와 판정기 단계이며, 소스 백업이 아니라 tool 스키마와 문서화된 동작에서 가져왔습니다.
   평가 스위트는 소스에 없으므로, 해당 칸들은 재구성으로 표시했습니다.
-- [harness²](https://github.com/google-research/harness2) 1cfe254: 진짜 0점과 따로 다루는 판정기 실패(harness2/core/judge.py, harness2/core/report.py),
-  rubric 다운로드 경고(docs/EXPERIMENTS.md), 읽기 경계(harness2/core/context.py), 출처를 가린 선택(harness2/core/selection.py),
-  그리고 앞선 task의 항목만 읽는 규칙과 실험 갈래마다 하나씩 두는 library(harness2/core/library.py, harness2/core/schedule.py).
+- [harness²](https://github.com/google-research/harness2) `1cfe254`: 진짜 0점과 따로 다루는 판정기 실패(`harness2/core/judge.py`, `harness2/core/report.py`),
+  rubric 다운로드 경고(`docs/EXPERIMENTS.md`), 읽기 경계(`harness2/core/context.py`), 출처를 가린 선택(`harness2/core/selection.py`),
+  그리고 앞선 task의 항목만 읽는 규칙과 실험 갈래마다 하나씩 두는 library(`harness2/core/library.py`, `harness2/core/schedule.py`).

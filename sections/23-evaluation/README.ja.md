@@ -96,11 +96,13 @@ user が状態を変えることもあり、agent はそれに気付かなけれ
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **経路ではなく結果。** 検査は最終状態を読むので、そこに到達した経路はどれでも合格します。参照解はタスクを解く一つの方法であって、必須の方法ではありません。
@@ -332,6 +334,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): 必須の事実、必須の推論ステップ、そして減点されるべき落とし穴を名指しするチェックリスト形式の rubric。
 - [Claude Code](https://code.claude.com/docs): workflow 契約におけるレビュー段階と判定段階。ソースのバックアップではなく、tool スキーマと文書化された挙動から。
   評価スイートはソースに存在しないので、それらのセルは再構成と印を付けています。
-- [harness²](https://github.com/google-research/harness2) at 1cfe254: 判定器の失敗を本当の 0 点と分けて扱うこと (harness2/core/judge.py、harness2/core/report.py)、
-  rubric がダウンロードされうるという警告 (docs/EXPERIMENTS.md)、improver が読めるものの境界 (harness2/core/context.py)、どの configuration の出力かを伏せた選択 (harness2/core/selection.py)、
-  前のタスクのエントリだけを読むことと、実験条件ごとに 1 つの library (harness2/core/library.py、harness2/core/schedule.py)。
+- [harness²](https://github.com/google-research/harness2) at `1cfe254`: 判定器の失敗を本当の 0 点と分けて扱うこと (`harness2/core/judge.py`、`harness2/core/report.py`)、
+  rubric がダウンロードされうるという警告 (`docs/EXPERIMENTS.md`)、improver が読めるものの境界 (`harness2/core/context.py`)、どの configuration の出力かを伏せた選択 (`harness2/core/selection.py`)、
+  前のタスクのエントリだけを読むことと、実験条件ごとに 1 つの library (`harness2/core/library.py`、`harness2/core/schedule.py`)。

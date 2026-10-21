@@ -96,11 +96,13 @@ Three checks, in order:
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **Outcome, not path.** The checks read the final state, so any route that reaches it passes. A reference solution is one way to solve the task, not the required way.
@@ -332,6 +334,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): checklist rubrics that name required facts, required reasoning steps, and the pitfalls that must be penalized.
 - [Claude Code](https://code.claude.com/docs): the reviewer and judge stages in the workflow contract, from tool schemas and documented behavior, not the source backup.
   Evaluation suites are not present in the source, so those cells are marked as reconstruction.
-- [harness²](https://github.com/google-research/harness2) at 1cfe254: a judge failure kept apart from a real zero (harness2/core/judge.py, harness2/core/report.py),
-  the rubric download warning (docs/EXPERIMENTS.md), the read boundary (harness2/core/context.py), blind selection (harness2/core/selection.py),
-  and earlier entries only, one library per arm (harness2/core/library.py, harness2/core/schedule.py).
+- [harness²](https://github.com/google-research/harness2) at `1cfe254`: a judge failure kept apart from a real zero (`harness2/core/judge.py`, `harness2/core/report.py`),
+  the rubric download warning (`docs/EXPERIMENTS.md`), the read boundary (`harness2/core/context.py`), blind selection (`harness2/core/selection.py`),
+  and earlier entries only, one library per arm (`harness2/core/library.py`, `harness2/core/schedule.py`).

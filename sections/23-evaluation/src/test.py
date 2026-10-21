@@ -224,8 +224,8 @@ def test_ungraded():
     v = grade(task, run_episode(make_env(), task, careful))
     assert v["graded"] and v["passed"] is False        # state the agent never wrote: a real failure
 
-    v = grade(refund_task("A17", "40.00"), run_episode(make_env(), refund_task("A17", "40.00"),
-                                                         lambda said, env: "OK."))
+    task = refund_task("A17", "40.00")
+    v = grade(task, run_episode(make_env(), task, lambda said, env: "OK."))
     assert v["graded"] and v["passed"] is False        # delivered nothing: a real zero
 
     task = ungraded_task("A17", "40.00")
