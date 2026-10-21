@@ -41,7 +41,9 @@ Three companion repos go deeper than one section can:
 
 ## The Agent Loop
 
-![The agent loop](https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38" alt="The agent loop" width="480">
+</p>
 
 Most agents share the same control flow: call the model, run requested tools, append results, and call the model again.
 
