@@ -21,23 +21,7 @@
 
 ## 核心机制
 
-```mermaid
-flowchart TD
-  base[Current configuration] --> ref[Reference run]
-  ref --> inv[Invariant editor edits a copy]
-  ref --> dom[Domain editor edits a copy]
-  inv --> chk{Structural checks}
-  dom --> chk
-  chk -- pass --> probe[Probe each candidate once on the same task]
-  chk -- fail twice: keep current --> probe
-  probe --> comp[Composer: merge, adopt one, or KEEP_BASE]
-  comp --> chk2{Structural checks}
-  chk2 --> final[Final run delivers the task]
-  final --> refl[Reflection: one entry or NO_ENTRY]
-  refl --> lib[(Library, per domain)]
-  lib -. later tasks read earlier entries .-> inv
-  lib -.-> dom
-```
+![机制图](assets/24-harness-adaptation.png)
 
 最简单的版本只走一步（k = 1）：
 
