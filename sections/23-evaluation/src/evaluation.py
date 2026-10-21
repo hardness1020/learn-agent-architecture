@@ -19,6 +19,8 @@ grade() reads the final state (the outcome), not the transcript, plus process
 metrics (illegal calls, steps) and a zero-tolerance veto. Repeats split one
 verdict into Pass@k (can it) and Pass^k (does it every time), and the binomial
 standard error gives the band under which a gap between two builds is noise.
+A run has three outcomes, not two: a check that returns None or raises
+GraderError leaves it ungraded, and rates cover graded tasks only.
 
 A pass rate does not cover a harness that routes on a probability (section
 22). brier() and ece() score the numbers themselves, and sweep() scores a
@@ -96,40 +98,71 @@ def run_episode(env: Env, task: dict, agent, max_turns: int = 8) -> dict:
     return {"transcript": transcript, "state": env.state, "calls": list(env.calls)}
 
 
+class GraderError(Exception):
+    """A check raises this when the grader itself broke: a judge timeout, a missing score file."""
+
+
+def _check(fn, state) -> bool | None:
+    """One check: True, False, or None when the grader broke.
+
+    Only None or a GraderError means ungraded. Any other error is a failed
+    check, so a check that crashes on state the agent never wrote stays a
+    real failure and cannot drop out of the rate."""
+    try:
+        out = fn(state)
+    except GraderError:
+        return None
+    except Exception:
+        return False
+    return None if out is None else bool(out)
+
+
 def grade(task: dict, run: dict) -> dict:
     """Score one episode: outcome first, then what was said, then the veto.
 
     checks read the final state, so any path that reaches it passes. must_say
     catches "claimed but never did" in reverse: work done, user never told.
-    A veto is zero tolerance: one hit fails the run whatever else scored."""
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}
+    A veto is zero tolerance: one hit fails the run whatever else scored, even
+    a check whose grader broke. Otherwise one broken check leaves the run
+    ungraded (passed is None), because a broken grader is not a zero."""
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe,
+    graded = bool(unsafe) or None not in checks.values()
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed,
             "checks": checks, "told": told, "unsafe": unsafe,
             "illegal_calls": sum(1 for _, ok in run["calls"] if not ok),
             "steps": len(run["calls"])}
 
 
 def score(task: dict, agent, k: int = 1) -> dict:
-    """Run one task k times. Pass@k asks can it, Pass^k asks does it every time."""
+    """Run one task k times. Pass@k asks can it, Pass^k asks does it every time.
+
+    Pass^k needs every run, so one ungraded run leaves the whole task ungraded."""
     runs = [grade(task, run_episode(task["env"](), task, agent)) for _ in range(k)]
+    graded = all(r["graded"] for r in runs)
     ok = [r["passed"] for r in runs]
-    return {"task": task["id"], "pass_at_k": any(ok), "pass_hat_k": all(ok), "runs": runs}
+    return {"task": task["id"], "graded": graded, "pass_at_k": any(ok) if graded else None,
+            "pass_hat_k": all(ok) if graded else None, "runs": runs}
 
 
 def run_suite(agent, tasks, k: int = 1) -> dict:
     """Section 20's run_eval, now with an environment, a reset, and a protocol.
 
     rate is the Pass^k rate: a task counts only if every one of its k runs
-    passed. band is the noise under which a difference is not a result."""
+    passed. band is the noise under which a difference is not a result.
+    Rates cover graded tasks only, and ungraded is reported beside them.
+    With no graded task there is no rate: None, not 0."""
     per_task = [score(t, agent, k) for t in tasks]
-    n = len(per_task) or 1
-    rate = sum(t["pass_hat_k"] for t in per_task) / n
+    graded = [t for t in per_task if t["graded"]]
+    n = len(graded)
+    rate = sum(t["pass_hat_k"] for t in graded) / n if n else None
     return {"tasks": len(per_task), "k": k, "rate": rate,
-            "pass_at_k": sum(t["pass_at_k"] for t in per_task) / n,
-            "band": noise_band(rate, n), "per_task": per_task}
+            "pass_at_k": sum(t["pass_at_k"] for t in graded) / n if n else None,
+            "band": noise_band(rate, n) if n else None,
+            "ungraded": len(per_task) - n, "per_task": per_task}
 
 
 def noise_band(rate: float, n: int) -> float:
@@ -141,11 +174,14 @@ def noise_band(rate: float, n: int) -> float:
 
 
 def paired(before: dict, after: dict) -> dict:
-    """Compare two suite results task by task. Only the tasks that changed carry information."""
-    b = {t["task"]: t["pass_hat_k"] for t in before["per_task"]}
-    a = {t["task"]: t["pass_hat_k"] for t in after["per_task"]}
-    return {"fixed": [k for k in b if not b[k] and a.get(k)],
-            "broke": [k for k in b if b[k] and not a.get(k)]}
+    """Compare two suite results task by task. Only the tasks that changed carry information.
+
+    A task ungraded on either side is left out: a broken grader is neither a fix nor a break."""
+    b = {t["task"]: t["pass_hat_k"] for t in before["per_task"] if t["graded"]}
+    a = {t["task"]: t["pass_hat_k"] for t in after["per_task"] if t["graded"]}
+    both = [k for k in b if k in a]
+    return {"fixed": [k for k in both if not b[k] and a[k]],
+            "broke": [k for k in both if b[k] and not a[k]]}
 
 
 def brier(log) -> float:
