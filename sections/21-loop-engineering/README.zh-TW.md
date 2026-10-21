@@ -170,6 +170,10 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 
 兩個都要看。只看第一個，一個內容正確但從來沒被載入的 skill，看起來就像一次失敗的更新，loop 對自己的判斷也就跟著錯了。
 
+**沒有 grader 的調整：** 第 24 章有一種做法，乍看像是沒把線上和離線分開。
+improver 在單一任務裡就動手改 configuration 的副本，過程中沒有 grader，也沒有 holdout set。
+不過 executor 每一趟執行都只負責把任務跑完，什麼都不改，所以線上和離線依然是分開的。
+
 ---
 
 ## 不同系統怎麼做
@@ -199,6 +203,7 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 - **狀態失憶（State amnesia）：** 每次執行都重新發現同樣的工作、重做一遍。緩解：把發現存進記憶或 task 紀錄（第 9、12 章），並在執行開始時讀取。
 - **自我修改的 harness 繞過關卡（Self-editing harness escapes its gates）：** 能改 harness 程式碼的改進 loop，也能改那些把關它的程式碼。
   緩解：權限和 budget 放在這個 loop 改不到的地方（第 3 章）。
+  事先講明的可改範圍，也要把被改的那個 agent 自己的關卡排除在外，例如負責批准或拒絕權限請求的 hook（第 24 章）。
 - **代理目標偏移（Proxy goal drift）：** 開放式的工作裡，rubric 只是真正目標的替身。loop 學會的是滿足 rubric：
   挑熟悉的寫法、把雜訊當成發現、只留下有過的執行。分數一路往上，真正的目標卻在偏。
   緩解：失敗的執行也留在證據裡、定期換新的 holdout set，並找人拿真正的目標來抽查輸出。
@@ -251,3 +256,4 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 與 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。
+- [harness²](https://github.com/google-research/harness2)（commit 1cfe254）：executor 的 hooks 檔案也屬於 edit surface，檔案裡可以掛 PermissionRequest 的 hook（harness2/substrate/codex.py）。

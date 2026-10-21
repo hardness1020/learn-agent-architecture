@@ -174,6 +174,9 @@ agent에게 무엇을 기억하라고 시킨 웹 페이지는 근거가 아닙�
 
 둘 다 봅니다. 첫 번째만 보면, 맞기는 하지만 한 번도 불러와지지 않는 skill이 실패한 갱신처럼 보이고, loop는 자기 자신에 대해 틀린 결론을 내립니다.
 
+**채점기 없이 적응하기.** 섹션 24는 온라인과 오프라인의 분리를 깨는 것처럼 보이는 경우를 다룹니다.
+improver가 task 하나를 처리하는 도중에 configuration의 사본을 고치는데, 채점기도 홀드아웃 세트도 없습니다. 그래도 executor의 실행은 아무것도 고치지 않으므로 분리는 그대로 유지됩니다.
+
 ---
 
 ## 시스템별
@@ -203,6 +206,7 @@ agent에게 무엇을 기억하라고 시킨 웹 페이지는 근거가 아닙�
 - **상태 기억 상실.** 실행마다 같은 일을 다시 찾아내고 다시 합니다. 완화: 발견한 것을 memory나 task 기록에 남기고(섹션 9, 12), 실행 시작 때 읽습니다.
 - **게이트를 빠져나가는 자기 수정 harness.** harness 코드를 고칠 수 있는 개선 loop는 자기를 막는 코드도 고칠 수 있습니다.
   완화: permission과 예산은 loop가 고칠 수 있는 어떤 것보다도 바깥에 둡니다(섹션 3).
+  수정 대상 agent의 게이트도 미리 선언해 둔 영역 밖에 둡니다. permission 요청에 답하는 hook이 그런 게이트입니다(섹션 24).
 - **대리 목표 이탈.** 열린 작업에서 rubric은 진짜 목표를 대신할 뿐입니다. loop는 그 대신 rubric을 만족시키는 법을 배웁니다:
   익숙한 코드를 재사용하고, 잡음을 발견으로 읽고, 통과한 실행만 남깁니다. 점수는 올라가고 진짜 목표는 미끄러집니다.
   완화: 실패한 실행도 근거에 남기고, 홀드아웃 세트를 새로 고치고, 사람이 출력을 진짜 목표에 비추어 검사합니다.
@@ -255,3 +259,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`의 `AgentConfig`와 `query()`, `agents/interactive.py`, `run/benchmarks/swebench.py`.
+- [harness²](https://github.com/google-research/harness2), 1cfe254 기준: edit surface에 executor의 hooks 파일이 들어 있고,
+  이 파일로 PermissionRequest에 hook을 등록할 수 있습니다(harness2/substrate/codex.py).

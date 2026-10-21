@@ -73,10 +73,10 @@
 
 | 系統                     | 大家為什麼用它                                                        | 值得看的地方                          | 覆蓋章節                  | 研究版本  |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------- | ------------------------- | --------- |
-| **Claude Code**    | 站在前沿的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起         | 0 到 23（全部）           | v2.1.88   |
-| **Hermes Agent**   | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22  | v2026.7.1 |
+| **Claude Code**    | 站在前沿的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起         | 0 到 24（全部）           | v2.1.88   |
+| **Hermes Agent**   | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22、24 | v2026.7.1 |
 | **mini-swe-agent** | 研究基準：一個 bash 工具，約 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 23 | v2.4.5    |
-| **deepseek-harness** | Plugin 優先的 harness：連 loop 都是可替換的 plugin。 | Plugin 擴充點、durable session log、ACP | 1 到 8、10 到 14、16 到 21 | dsh-v0.1.0-rc.7 |
+| **deepseek-harness** | Plugin 優先的 harness：連 loop 都是可替換的 plugin。 | Plugin 擴充點、durable session log、ACP | 1 到 8、10 到 14、16 到 21、24 | dsh-v0.1.0-rc.7 |
 | *(更多陸續加入)*       |                                                                       |                                       |                           |           |
 
 > 之後可以再加入更多系統，例如 OpenClaw 和 aider。
@@ -127,12 +127,13 @@
 |    | **第 7 層 · 組合**                                                   |                                     |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/README.zh-TW.md)             | loop 怎麼疊成一個能自己運轉的系統？ | Verification loop, triggers, budgets, maturity levels |
 | 22 | [Graph engineering](sections/22-graph-engineering/README.zh-TW.md) | 什麼時候該讓程式碼決定下一步，而不是問 model？ | Nodes, coded edges, cycles, agents as nodes, typed decision edges|
+| 24 | [Harness adaptation](sections/24-harness-adaptation/README.zh-TW.md)         | 沒有 grader 的時候，agent 的 configuration 怎麼變好？ | Edit surface, probes, compose or keep, library |
 
 ---
 
 ## 檔案結構
 
-24 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `23-evaluation/`。
+25 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `24-harness-adaptation/`。
 
 ```text
 learn-agent-architecture/
@@ -141,13 +142,13 @@ learn-agent-architecture/
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可執行的程式碼鏈從這裡開始
 │   ├── ...
-│   └── 23-evaluation/
+│   └── 24-harness-adaptation/
 └── references/                # 原始出處與前人成果
 ```
 
 每個章節資料夾都是 `NN-name/` 格式，裡面有一份 `README.md`。
 
-第 1 到 23 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
+第 1 到 24 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
 每一章新增一個機制，並讓 `loop.py` 演進，所以對比相鄰兩章的 diff，就能看出改了什麼。
 
 超出單一章節份量的深入主題，會獨立成自己的 repo。
@@ -158,7 +159,7 @@ learn-agent-architecture/
 
 ## 執行示範
 
-第 1 到 23 章都附有可執行的示範。從 repo 根目錄設定一次就好：
+第 1 到 24 章都附有可執行的示範。從 repo 根目錄設定一次就好：
 
 ```bash
 uv venv
@@ -201,6 +202,8 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): 開源 agent harness（MIT），作為第二個研究系統。
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 極簡 SWE agent（MIT），作為第三個研究系統。
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 以 plugin 為基礎的 agent harness（MIT），作為第四個研究系統。
+- [harness²](https://github.com/google-research/harness2): agent 本身不動，只根據 probe run 的結果改它的 configuration，過程中沒有 grader（Apache-2.0）。
+  第 24 章拿它當機制的出處，沒有把它列為研究系統，引用的版本固定在 commit 1cfe254。
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以程式碼為主的 harness 重建與章節架構。
 - [EvalGrill](https://github.com/hardness1020/EvalGrill): 應用第 23 章做法的延伸工具 (Apache-2.0)，把 agent 應用的真實案例做成 eval set。
 - [Anthropic Agent Skills 最佳實踐](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的漸進式揭露層級。

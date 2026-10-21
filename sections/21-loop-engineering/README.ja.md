@@ -173,6 +173,9 @@ agent に何を覚えるべきか告げた web ページは、根拠ではあり
 
 両方読みます。1 つ目だけだと、正しいのに一度も読み込まれない skill が更新の失敗に見えてしまい、loop は自分について間違った結論を引き出します。
 
+**採点器なしで適応する。** セクション 24 には、一見この分離を破るように見える例が出てきます。improver が 1 つのタスクの中で configuration のコピーを編集します。
+採点器もホールドアウトセットも使いません。それでも executor の実行は何も編集しないので、この分離は保たれています。
+
 ---
 
 ## システム別
@@ -202,6 +205,7 @@ agent に何を覚えるべきか告げた web ページは、根拠ではあり
 - **状態の忘却。** どの実行も同じ仕事を発見し直し、やり直します。緩和策: 発見を memory か task 記録に永続化し (セクション 9、12)、実行開始時に読みます。
 - **自己編集する harness がゲートを抜け出す。** harness のコードを変更できる改善 loop は、自分をゲートしているコードも変更できます。
   緩和策: permission と予算を、loop が編集できるものの外に置きます (セクション 3)。
+  loop が編集してよいと宣言した領域からは、編集される側の agent 自身のゲートも外します。permission の要求に答える hook がその例です (セクション 24)。
 - **代理目標のずれ。** 終わりの決まっていない仕事では、rubric は本当の目標の代役にすぎません。loop は代わりに rubric を満たすことを学びます。
   見慣れたコードを使い回し、ノイズを発見と読み、通った実行だけを残します。スコアは上がり、本当の目標は遠のきます。
   緩和策: 失敗した実行を根拠に残し、ホールドアウトセットを更新し、人間が出力を本当の目標に照らして検査します。
@@ -254,3 +258,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py` の `AgentConfig` と `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。
+- [harness²](https://github.com/google-research/harness2) の 1cfe254: edit surface 上にあり、PermissionRequest にも hook を割り当てられる executor の hooks ファイル
+  (harness2/substrate/codex.py)。
