@@ -41,7 +41,9 @@
 
 ## Agent Loop
 
-![The agent loop](https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38" alt="The agent loop" width="480">
+</p>
 
 대부분의 agent는 같은 제어 흐름을 공유합니다. 모델을 호출하고, 요청된 tool을 실행하고, 결과를 덧붙이고, 모델을 다시 호출합니다.
 

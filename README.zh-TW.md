@@ -40,7 +40,9 @@
 
 ## Agent loop
 
-![The agent loop](https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38" alt="The agent loop" width="480">
+</p>
 
 大多數 agent 都共用同一套控制流程：呼叫模型、執行它要求的工具、把結果加回對話，然後再次呼叫模型。
 
