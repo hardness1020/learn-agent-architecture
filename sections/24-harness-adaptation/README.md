@@ -79,7 +79,7 @@ The configuration has eight components, and each has a home section in this repo
 | Scripts | 2 |
 | Plugins or hooks | 4 |
 
-- **The surface is data.** Each executor declares its own. OpenCode has four always-on files and plugins. Codex has one smaller always-on file and a hooks file instead.
+- **The surface is data.** Each executor declares its own. One executor has four always-on files and plugins. The other has one smaller always-on file and a hooks file instead.
 - **The improver edits a copy.** It works in its own workspace. Only the edited configuration folder comes back.
   The method's own prompts and gates are never copied in, so the improver cannot edit them.
 - **Checks run before any probe.** A copy fails when:
@@ -112,7 +112,7 @@ def run_stage(editor, config, attempts=2):            # src/adapt.py
     return {"config": dict(config), "fell_back": True, "kept_base": False, "attempts": attempts, "error": feedback}
 ```
 
-The surface reaches in-loop control. Codex's editable hooks file can bind `PreToolUse` and `PermissionRequest` (section 4).
+The surface reaches in-loop control. One executor's editable hooks file can bind `PreToolUse` and `PermissionRequest` (section 4).
 So an edit can change how the executor gates its own tool calls. Section 21's gates rule has to cover this case.
 
 ### New: width or depth under one budget

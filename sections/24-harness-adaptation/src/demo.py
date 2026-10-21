@@ -20,7 +20,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from adapt import KEEP_BASE, diff, step
+from adapt import KEEP_BASE, SURFACE, diff, step
 from evaluation import Env, grade, run_episode, scripted_user
 from loop import Session, run_turn
 from permissions import DEFAULT
@@ -82,7 +82,7 @@ def parse(text):
 
 
 RULES = ("There is no rubric and no score. A run shows how the agent behaves, not whether it was right.\n"
-         "Allowed paths: AGENTS.md (always-on text), skills/<name>/SKILL.md, scripts/<name>.py.\n"
+         f"Allowed paths: {', '.join(SURFACE['paths'])}. AGENTS.md loads every session.\n"
          "Reply with one line per edit citing the moment in a run behind it, then the whole configuration "
          "as one JSON object of path to text. Or reply KEEP_BASE.")
 

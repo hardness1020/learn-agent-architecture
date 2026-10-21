@@ -44,9 +44,12 @@ def test_check():
 
     assert "off the edit surface" in problems({**BASE, "loop.py": "x = 1"})
     assert "off the edit surface" in problems({**BASE, "scripts/../scripts/x.py": "x = 1"})
+    assert "off the edit surface" in problems({**BASE, "scripts/deep/x.py": "x = 1"})   # * never crosses a folder
+    assert "off the edit surface" in problems({**BASE, "skills/verify-refund/nested/SKILL.md": "description: x"})
     assert "cap" in problems({**BASE, "AGENTS.md": BASE["AGENTS.md"] + " pad" * 2000})
     assert "no description" in problems({**BASE, "skills/verify-refund/SKILL.md": "Run scripts/refund_check.py first."})
     assert "never named" in problems({**BASE, "AGENTS.md": "Read an order before you refund it."})
+    assert "never named" in problems({**BASE, "AGENTS.md": "Use the pre-verify-refund-x skill."})   # a whole name, not a substring
     assert "does not compile" in problems({**BASE, "scripts/refund_check.py": "def broken(:\n"})
     assert "missing script" in problems({k: v for k, v in BASE.items() if not k.startswith("scripts/")})
     assert "no configuration" in problems(None) and "no configuration" in problems({})

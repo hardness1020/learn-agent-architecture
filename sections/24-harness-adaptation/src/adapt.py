@@ -21,20 +21,24 @@ The pick among the k finals and the reflection that writes a library entry are
 model sessions this module leaves to the caller (see the README).
 
 Mirrors harness2/core/tree.py, recursion.py, ledger.py, and library.py at 1cfe254.
-Standalone like spill.py: loop.py never imports it, the executor is a callable.
+Standalone like section 8's spill.py: loop.py never imports it, the executor is a callable.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
 from difflib import unified_diff
-from fnmatch import fnmatch
 
 SURFACE = {
-    "paths": ("AGENTS.md", "skills/*/SKILL.md", "scripts/*.py"),   # ponytail: 3 of the 8 components, one pattern each
+    "paths": ("AGENTS.md", "skills/*/SKILL.md", "scripts/*.py"),   # 3 of the 8 components, one pattern each
     "always_on": ("AGENTS.md",),                                  # text the executor loads every session
     "cap": 4000,                                                  # characters of always-on text
 }
+
+
+def matches(path: str, pattern: str) -> bool:
+    """A glob where * stays inside one folder: skills/*/SKILL.md never matches skills/a/b/SKILL.md."""
+    return re.fullmatch(re.escape(pattern).replace(r"\*", "[^/]+"), path) is not None
 
 
 def check(config: dict) -> None:
@@ -48,17 +52,17 @@ def check(config: dict) -> None:
         raise ValueError(" | ".join(f"{p}: not text" for p, t in config.items() if not isinstance(t, str)))
     problems = []
     for path in sorted(config):
-        if ".." in path.split("/") or not any(fnmatch(path, p) for p in SURFACE["paths"]):
+        if ".." in path.split("/") or not any(matches(path, p) for p in SURFACE["paths"]):
             problems.append(f"{path}: off the edit surface")
     always_on = "\n".join(config.get(p, "") for p in SURFACE["always_on"])
     if len(always_on) > SURFACE["cap"]:
         problems.append(f"always-on text is {len(always_on)} characters, over the {SURFACE['cap']} cap")
     for path, text in sorted(config.items()):
-        if fnmatch(path, "skills/*/SKILL.md"):
+        if matches(path, "skills/*/SKILL.md"):
             name = path.split("/")[1]
             if not re.search(r"^description:\s*\S", text, re.M):
                 problems.append(f"{path}: no description")
-            if name not in always_on:
+            if not re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", always_on):   # the whole name
                 problems.append(f"{path}: skill {name} is never named in always-on text")
             for script in re.findall(r"scripts/[\w.-]+\.py", text):
                 if script not in config:

@@ -79,8 +79,8 @@ configuration은 구성 요소 여덟 개로 이루어지고, 각각을 다루�
 | script | 2 |
 | plugin 또는 hook | 4 |
 
-- **edit surface는 데이터입니다.** executor마다 자기 edit surface를 선언합니다. OpenCode에는 항상 불러오는 파일 넷과 plugin이 있습니다.
-  Codex에는 항상 불러오는 파일이 더 작은 것 하나뿐이고, plugin 대신 hooks 파일이 있습니다.
+- **edit surface는 데이터입니다.** executor마다 자기 edit surface를 선언합니다. 한쪽 executor에는 항상 불러오는 파일 넷과 plugin이 있습니다.
+  다른 쪽에는 항상 불러오는 파일이 더 작은 것 하나뿐이고, plugin 대신 hooks 파일이 있습니다.
 - **improver는 사본을 고칩니다.** improver는 자기만의 작업 공간에서 일합니다. 거기서 돌아오는 것은 편집된 configuration 폴더뿐입니다.
   이 방법 자체의 prompt와 게이트는 작업 공간에 복사되지 않으므로, improver가 그것을 고칠 수 없습니다.
 - **검사는 어떤 probe보다도 먼저 돕니다.** 다음 중 하나에 해당하면 사본은 실패합니다:
@@ -113,7 +113,7 @@ def run_stage(editor, config, attempts=2):            # src/adapt.py
     return {"config": dict(config), "fell_back": True, "kept_base": False, "attempts": attempts, "error": feedback}
 ```
 
-edit surface는 loop 안의 제어에까지 닿습니다. Codex의 hooks 파일은 고칠 수 있는 파일이고, `PreToolUse`와 `PermissionRequest`에 연결될 수 있습니다(섹션 4).
+edit surface는 loop 안의 제어에까지 닿습니다. 한쪽 executor의 hooks 파일은 고칠 수 있는 파일이고, `PreToolUse`와 `PermissionRequest`에 연결될 수 있습니다(섹션 4).
 그러면 편집 하나로 executor가 자기 tool 호출에 거는 게이트가 바뀔 수 있습니다. 섹션 21의 게이트 규칙은 이 경우까지 다뤄야 합니다.
 
 ### 새로 추가: 같은 예산을 넓게 쓸지 깊게 쓸지

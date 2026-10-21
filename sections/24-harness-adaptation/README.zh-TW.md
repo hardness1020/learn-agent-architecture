@@ -43,12 +43,12 @@ flowchart TD
 
 1. **Reference run：** executor 用目前的 configuration 把任務跑一次。
 2. **提議（Propose）：** 兩個 editor 各自開一個 session，各改一份副本。invariant editor 管 agent 怎麼做事：步驟、tool 的用法、script、subagent。
-   domain editor 管這一行的人會懂的東西：領域知識和 skill。每個 editor 都被告知，每一處改動都要指出是 run 裡的哪個時刻讓它這樣改。
+   domain editor 管這一行的人會懂的東西：領域知識和 skill。prompt 會要求每個 editor，每一處改動都要指出是 run 裡的哪個時刻讓它這樣改。
 3. **檢查（Check）：** 每份副本都要跑一遍結構檢查（見下一小節）。
 4. **Probe：** 每個 candidate（改好的副本）用同一個 model、在同一個環境裡，把同一個任務跑一次。
 5. **合併（Compose）：** 一個 session（composer）讀 reference run，以及每個 candidate 的 diff 和 probe 結果。
    它可以把有證據支持的改動合在一起、直接採用其中一個 candidate，或回答 `KEEP_BASE`，表示維持原樣。
-   composer 被告知：只跑一次的 probe 是很弱的證據；如果有好幾次 reference run，只在其中一次出現的毛病就當成雜訊。
+   prompt 也會提醒 composer：只跑一次的 probe 是很弱的證據；如果有好幾次 reference run，只在其中一次出現的毛病就當成雜訊。
    composer 的輸出也要走同一套檢查、重試和回退。
 6. **交付（Deliver）：** 用合併後的 configuration 跑出來的那次 run，就是要交出去的成果。
 
@@ -80,8 +80,8 @@ configuration 由八個部分組成，每個部分在這個 repo 裡都有專門
 | Script | 2 |
 | Plugin 或 hook | 4 |
 
-- **edit surface 寫成資料：** 每個 executor 自己宣告自己的 edit surface。OpenCode 有四個常駐檔案（每次都會載入的檔案），另外還有 plugin。
-  Codex 則只有一個比較小的常駐檔案，沒有 plugin，改用一個 hooks 檔案。
+- **edit surface 寫成資料：** 每個 executor 自己宣告自己的 edit surface。其中一個 executor 有四個常駐檔案（每次都會載入的檔案），另外還有 plugin。
+  另一個則只有一個比較小的常駐檔案，沒有 plugin，改用一個 hooks 檔案。
 - **improver 只改副本：** 它在自己的工作區裡做事，最後只有改好的 configuration 資料夾會拿回來。
   這套方法自己的 prompt 和 gate 從來不會複製進去，所以 improver 改不到它們。
 - **檢查在任何 probe 之前跑：** 副本只要有下面任何一種情況，就算不合格：
@@ -114,7 +114,7 @@ def run_stage(editor, config, attempts=2):            # src/adapt.py
     return {"config": dict(config), "fell_back": True, "kept_base": False, "attempts": attempts, "error": feedback}
 ```
 
-edit surface 甚至碰得到 loop 裡的控制。Codex 那個可以修改的 hooks 檔案，能綁定 `PreToolUse` 和 `PermissionRequest`（第 4 章）。
+edit surface 甚至碰得到 loop 裡的控制。其中一個 executor 的 hooks 檔案可以修改，能綁定 `PreToolUse` 和 `PermissionRequest`（第 4 章）。
 所以一個改動，就可能改變 executor 怎麼替自己的 tool 呼叫把關。第 21 章說 gate 要放在 loop 能改的範圍之外，這條規則也得涵蓋這種情況。
 
 ### 新增：同一個 budget，要花在廣度還是深度
@@ -206,7 +206,7 @@ harness² 對這些部分有自己的叫法。這個 repo 還是用自己的用�
 - **被退回的改動卡住整個 run（A rejected edit stalls the run）：** 不合格的 configuration 如果沒有回退機制，任務就會卡住，或一直等人來處理。
   緩解：把 validator 的錯誤訊息帶進一次重試，還是不行就保留現有的 configuration，並把「被迫回退」和「主動保留」分開記。
 - **library 的紀錄夾帶有害程式碼（A library entry carries a payload）：** 紀錄裡存著 script 和 hook，複製過去的組成部分會在下一個任務的 executor 裡執行。
-  緩解：把紀錄當成不可信的內容（第 3 章）。improver 被告知絕不能執行它讀到的東西；複製過來的部分，也要跟新的改動一樣過檢查、跑 probe。
+  緩解：把紀錄當成不可信的內容（第 3 章）。prompt 會要求 improver 絕不能執行它讀到的東西；複製過來的部分，也要跟新的改動一樣過檢查、跑 probe。
   每次 probe 都放在擋掉對外連線的沙箱裡跑（第 3 章）。harness² 釋出的版本沒有提供這種沙箱。
 - **improver 看到了分數（The improver sees the score）：** 證據裡只要出現 rubric、分數或 verifier 的輸出，測試集就成了訓練訊號。
   緩解：證據裡不放任何答案、用 allowlist 限制哪些東西可以複製進來、設一道擋下判定文字的 tripwire、教訓存進去之前先掃描，並替 executor 擋掉評分用的 host。

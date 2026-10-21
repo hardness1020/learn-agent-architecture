@@ -79,8 +79,8 @@ configuration は 8 つの構成要素からなり、どれもこのリポジト
 | スクリプト | 2 |
 | plugin または hook | 4 |
 
-- **edit surface はデータとして宣言する。** executor ごとに、自分の edit surface を宣言します。OpenCode には、常に読み込まれるファイルが 4 つと plugin があります。
-  Codex はその代わりに、もっと小さい常時読み込みのファイル 1 つと、hooks ファイルを持ちます。
+- **edit surface はデータとして宣言する。** executor ごとに、自分の edit surface を宣言します。一方の executor には、常に読み込まれるファイルが 4 つと plugin があります。
+  もう一方はその代わりに、もっと小さい常時読み込みのファイル 1 つと、hooks ファイルを持ちます。
 - **improver はコピーを編集する。** improver は専用のワークスペースで作業します。戻ってくるのは、編集された configuration のフォルダだけです。
   手法自身の prompt とゲートはワークスペースにコピーされないので、improver はそれらを編集できません。
 - **検査は probe より先。** 次のどれかに当てはまるコピーは不合格です。
@@ -113,7 +113,7 @@ def run_stage(editor, config, attempts=2):            # src/adapt.py
     return {"config": dict(config), "fell_back": True, "kept_base": False, "attempts": attempts, "error": feedback}
 ```
 
-edit surface は、loop の中の制御にまで届きます。Codex の編集できる hooks ファイルは、`PreToolUse` と `PermissionRequest` に hook を結び付けられます (セクション 4)。
+edit surface は、loop の中の制御にまで届きます。一方の executor の編集できる hooks ファイルは、`PreToolUse` と `PermissionRequest` に hook を結び付けられます (セクション 4)。
 つまり 1 つの編集で、executor が自分の tool 呼び出しをどうゲートするかまで変わりえます。セクション 21 のゲートの規則は、この場合にも当てはめる必要があります。
 
 ### 本節の新規: 同じ予算で幅を取るか、深さを取るか
