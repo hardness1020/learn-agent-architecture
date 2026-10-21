@@ -258,5 +258,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `AgentConfig` and `query()` in `agents/default.py`, `agents/interactive.py`, `run/benchmarks/swebench.py`.
-- [harness²](https://github.com/google-research/harness2) at 1cfe254: an executor hooks file on the edit surface that may bind PermissionRequest
-  (harness2/substrate/codex.py).
+- [harness²](https://github.com/google-research/harness2) at `1cfe254`: an executor hooks file on the edit surface that may bind PermissionRequest
+  (`harness2/substrate/codex.py`).

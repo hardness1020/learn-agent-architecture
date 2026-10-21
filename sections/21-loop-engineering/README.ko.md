@@ -259,5 +259,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`의 `AgentConfig`와 `query()`, `agents/interactive.py`, `run/benchmarks/swebench.py`.
-- [harness²](https://github.com/google-research/harness2), 1cfe254 기준: edit surface에 executor의 hooks 파일이 들어 있고,
-  이 파일로 PermissionRequest에 hook을 등록할 수 있습니다(harness2/substrate/codex.py).
+- [harness²](https://github.com/google-research/harness2), `1cfe254` 기준: edit surface에 executor의 hooks 파일이 들어 있고,
+  이 파일로 PermissionRequest에 hook을 등록할 수 있습니다(`harness2/substrate/codex.py`).

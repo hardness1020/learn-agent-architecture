@@ -256,4 +256,4 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 與 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。
-- [harness²](https://github.com/google-research/harness2)（commit 1cfe254）：executor 的 hooks 檔案也屬於 edit surface，檔案裡可以掛 PermissionRequest 的 hook（harness2/substrate/codex.py）。
+- [harness²](https://github.com/google-research/harness2)（commit `1cfe254`）：executor 的 hooks 檔案也屬於 edit surface，檔案裡可以掛 PermissionRequest 的 hook（`harness2/substrate/codex.py`）。

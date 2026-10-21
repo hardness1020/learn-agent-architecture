@@ -258,5 +258,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py` の `AgentConfig` と `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。
-- [harness²](https://github.com/google-research/harness2) の 1cfe254: edit surface 上にあり、PermissionRequest にも hook を割り当てられる executor の hooks ファイル
-  (harness2/substrate/codex.py)。
+- [harness²](https://github.com/google-research/harness2) の `1cfe254`: edit surface 上にあり、PermissionRequest にも hook を割り当てられる executor の hooks ファイル
+  (`harness2/substrate/codex.py`)。
