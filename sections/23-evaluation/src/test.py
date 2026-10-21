@@ -24,10 +24,17 @@ router can be right on this sample and still have numbers worth nothing.
 test_sweep(): widening the abstain band buys coverage until it buys a false
 allow. The threshold pair is read off a labelled log, not chosen by taste.
 
+test_ungraded(): a check that raises GraderError leaves its task ungraded, so
+the rate stays where it was and the ungraded count goes up by one. A check that
+crashes on state the agent never wrote, and an agent that delivered nothing,
+are still real failures. A veto fails a run even with an ungraded check, an
+all-ungraded suite reports no rate, and the paired comparison leaves out a
+task ungraded on either side.
+
     python sections/23-evaluation/src/test.py
 """
 from decide import route
-from evaluation import (Env, brier, ece, grade, paired, run_episode, run_suite, score,
+from evaluation import (Env, GraderError, brier, ece, grade, paired, run_episode, run_suite, score,
                         scripted_user, sweep)
 
 ORDERS = {"A17": {"status": "delivered", "total": "40.00"},
@@ -195,6 +202,47 @@ def test_sweep():
     print("23 evaluation: sweep ok")
 
 
+def broken(_state):
+    """A check whose grader broke: a judge timeout, a missing score file."""
+    raise GraderError("judge timed out")
+
+
+def ungraded_task(order_id, amount):
+    """The same task, but this time one of its graders broke."""
+    task = refund_task(order_id, amount)
+    task["checks"] = task["checks"] + [("judged", broken)]
+    return task
+
+
+def test_ungraded():
+    full = run_suite(careful, TASKS + [ungraded_task("A17", "40.00")])
+    assert full["rate"] == run_suite(careful, TASKS)["rate"] == 1.0   # a broken grader is not a zero
+    assert full["ungraded"] == 1 and full["tasks"] == 3               # and it is still counted
+
+    task = refund_task("A17", "40.00")
+    task["checks"] = task["checks"] + [("receipt", lambda s: s["receipt"]["sent"])]
+    v = grade(task, run_episode(make_env(), task, careful))
+    assert v["graded"] and v["passed"] is False        # state the agent never wrote: a real failure
+
+    v = grade(refund_task("A17", "40.00"), run_episode(make_env(), refund_task("A17", "40.00"),
+                                                         lambda said, env: "OK."))
+    assert v["graded"] and v["passed"] is False        # delivered nothing: a real zero
+
+    task = ungraded_task("A17", "40.00")
+    v = grade(task, run_episode(make_env(), task, sweeping))
+    assert v["graded"] and v["passed"] is False and v["unsafe"]   # a veto fails it anyway
+
+    none = run_suite(careful, [ungraded_task("A17", "40.00")])
+    assert none["rate"] is None and none["pass_at_k"] is None and none["band"] is None
+    assert none["ungraded"] == 1                       # no rate at all, not a rate of 0
+
+    before = run_suite(careful, TASKS)
+    after = run_suite(silent, [refund_task("A17", "40.00"), ungraded_task("B92", "12.50")])
+    assert paired(before, after) == {"fixed": [], "broke": ["refund-A17"]}   # B92 left out, not broke
+
+    print("23 evaluation: ungraded ok")
+
+
 if __name__ == "__main__":
     test_reset()
     test_protocol()
@@ -203,3 +251,4 @@ if __name__ == "__main__":
     test_regression()
     test_calibration()
     test_sweep()
+    test_ungraded()
