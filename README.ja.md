@@ -41,7 +41,7 @@
 
 ## Agent loop
 
-![The agent loop](assets/the-agent-loop.png)
+![The agent loop](https://github.com/user-attachments/assets/d1ff3785-57c1-4434-99d2-9c9486427a38)
 
 ほとんどの agent は同じ制御フローを共有します。モデルを呼び出し、要求された tool を実行し、結果を追記し、もう一度モデルを呼び出します。
 
