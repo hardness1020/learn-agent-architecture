@@ -173,6 +173,9 @@ The split also changes what to measure. Read two numbers, not one:
 
 Read both. With only the first, a skill that is correct but never loads looks like a failed update, and the loop draws the wrong conclusion about itself.
 
+**Adapting with no grader.** Section 24 covers a case that looks like it breaks this split. An improver edits a copy of the configuration inside one task,
+with no grader and no holdout set. The executor's runs still edit nothing, so the split holds.
+
 ---
 
 ## Per system
@@ -202,6 +205,7 @@ How each agent composes its outer loops.
 - **State amnesia.** Each run rediscovers the same work and redoes it. Mitigation: persist findings to memory or task records (sections 9, 12) and read them at run start.
 - **Self-editing harness escapes its gates.** An improvement loop that can modify harness code can modify the code that gates it.
   Mitigation: permissions and budgets live outside anything the loop can edit (section 3).
+  The declared region also leaves out the gates of the agent being edited, such as a hook that answers permission requests (section 24).
 - **Proxy goal drift.** On open-ended work the rubric only stands in for the real goal. The loop learns to satisfy the rubric instead:
   it reuses familiar code, reads noise as a finding, and keeps only the runs that passed. The score climbs and the real goal slips.
   Mitigation: keep the failed runs in the evidence, refresh the holdout set, and have a human check output against the real goal.
@@ -254,3 +258,5 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `AgentConfig` and `query()` in `agents/default.py`, `agents/interactive.py`, `run/benchmarks/swebench.py`.
+- [harness²](https://github.com/google-research/harness2) at `1cfe254`: an executor hooks file on the edit surface that may bind PermissionRequest
+  (`harness2/substrate/codex.py`).

@@ -74,10 +74,10 @@ loop는 작습니다. 엔지니어링 대부분은 그 주위에 있습니다. t
 
 | 시스템 | 사람들이 쓰는 이유 | 무엇을 보려고 읽는지 | 섹션 | 연구한 버전 |
 | --- | --- | --- | --- | --- |
-| **Claude Code**  | 최전선 coding agent. 파일을 고치고, 명령을 실행하고, 실제 저장소에 변경을 반영함. | harness 전체, 여기서 시작 | 0부터 23까지(전부) | v2.1.88         |
-| **Hermes Agent** | 장기 assistant. 사용자를 기억하고, workflow를 익히고, 어디서든 돎. | memory, skill, 항상 켜진 channel | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
+| **Claude Code**  | 최전선 coding agent. 파일을 고치고, 명령을 실행하고, 실제 저장소에 변경을 반영함. | harness 전체, 여기서 시작 | 0부터 24까지(전부) | v2.1.88         |
+| **Hermes Agent** | 장기 assistant. 사용자를 기억하고, workflow를 익히고, 어디서든 돎. | memory, skill, 항상 켜진 channel | 7, 9, 14, 16, 19, 21, 22, 24 | v2026.7.1 |
 | **mini-swe-agent** | 연구용 기준선. bash tool 하나, 약 150줄. | 가장 작은 완전한 loop, 예산, eval harness | 0부터 3까지, 8, 10, 11, 20부터 23까지 | v2.4.5 |
-| **deepseek-harness** | plugin 우선 harness. loop마저 교체 가능한 plugin. | plugin seam, 지속되는 session log, ACP | 1부터 8까지, 10부터 14까지, 16부터 21까지 | dsh-v0.1.0-rc.7 |
+| **deepseek-harness** | plugin 우선 harness. loop마저 교체 가능한 plugin. | plugin seam, 지속되는 session log, ACP | 1부터 8까지, 10부터 14까지, 16부터 21까지, 24 | dsh-v0.1.0-rc.7 |
 | *(more soon)* | | | | |
 
 > 나중에 OpenClaw와 aider를 비롯한 시스템을 더 넣을 수 있습니다.
@@ -128,12 +128,13 @@ loop는 작습니다. 엔지니어링 대부분은 그 주위에 있습니다. t
 |    | **Layer 7 · 조합**                                     |                                                    |                                                       |
 | 21 | [Loop 엔지니어링](sections/21-loop-engineering/)              | loop는 어떻게 쌓여 스스로 도는 시스템이 되는가?    | 검증 loop, 트리거, 예산, 성숙도 단계                  |
 | 22 | [Graph 엔지니어링](sections/22-graph-engineering/)            | 제어 흐름은 언제 모델에서 코드로 넘어가는가?       | 노드, 코드로 짠 엣지, 순환, 노드로서의 agent, 타입이 정해진 판단 엣지 |
+| 24 | [Harness 적응](sections/24-harness-adaptation/)            | agent의 configuration은 채점기 없이 어떻게 나아지는가? | edit surface, probe, 조합 또는 유지, library |
 
 ---
 
 ## 리포지토리 구조
 
-`00-harness-thesis/`부터 `23-evaluation/`까지 섹션 글 24개가 모두 있습니다.
+`00-harness-thesis/`부터 `24-harness-adaptation/`까지 섹션 글 25개가 모두 있습니다.
 
 ```text
 learn-agent-architecture/
@@ -142,13 +143,13 @@ learn-agent-architecture/
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
 │   ├── ...
-│   └── 23-evaluation/
+│   └── 24-harness-adaptation/
 └── references/                # primary sources and prior art
 ```
 
 각 섹션 폴더는 `NN-name/` 형태이고 `README.md`를 담고 있습니다.
 
-섹션 1부터 23까지는 실행 가능한 `src/`도 함께 담고 있습니다. 코드는 섹션마다 쌓입니다.
+섹션 1부터 24까지는 실행 가능한 `src/`도 함께 담고 있습니다. 코드는 섹션마다 쌓입니다.
 각 섹션은 메커니즘을 하나 더하고 `loop.py`를 발전시키므로, 이웃한 두 섹션의 diff가 무엇이 바뀌었는지 보여 줍니다.
 
 섹션 하나로 감당이 안 되는 깊은 주제는 각자의 저장소에 있습니다.
@@ -159,7 +160,7 @@ learn-agent-architecture/
 
 ## 데모 실행
 
-섹션 1부터 23까지는 실행 가능한 데모를 함께 제공합니다. 저장소 루트에서 한 번만 준비하면 됩니다.
+섹션 1부터 24까지는 실행 가능한 데모를 함께 제공합니다. 저장소 루트에서 한 번만 준비하면 됩니다.
 
 ```bash
 uv venv
@@ -202,6 +203,8 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): 두 번째 연구 대상으로 삼은 오픈소스 agent harness(MIT).
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 세 번째 연구 대상으로 삼은 최소 SWE agent(MIT).
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 네 번째 연구 대상으로 삼은 plugin 기반 agent harness(MIT).
+- [harness²](https://github.com/google-research/harness2): 고정된 agent의 configuration을 probe 실행을 근거로 고치는 도구(Apache-2.0). loop 안에 채점기가 없습니다.
+  섹션 24는 이것을 메커니즘의 출처로 삼습니다. 기준 커밋은 1cfe254입니다.
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 코드 우선의 harness 재구성과 섹션 구성.
 - [EvalGrill](https://github.com/hardness1020/EvalGrill): 섹션 23을 실천하는 짝 도구 (Apache-2.0). agent를 실제로 쓴 사례에서 eval 세트를 만듭니다.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skill의 점진적 공개 단계.

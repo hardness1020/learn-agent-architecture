@@ -96,7 +96,7 @@ def demo():
         print(f"23 evaluation: agent | {reply.strip()}")
     print("23 evaluation: state checks:", v["checks"], "· told:", v["told"])
     print("23 evaluation: steps:", v["steps"], "· illegal calls:", v["illegal_calls"], "· vetoed:", v["unsafe"])
-    print("23 evaluation:", "PASS" if v["passed"] else "FAIL")
+    print("23 evaluation:", "UNGRADED" if not v["graded"] else "PASS" if v["passed"] else "FAIL")
 
 
 if __name__ == "__main__":

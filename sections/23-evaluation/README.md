@@ -96,11 +96,13 @@ Three checks, in order:
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **Outcome, not path.** The checks read the final state, so any route that reaches it passes. A reference solution is one way to solve the task, not the required way.
@@ -139,6 +141,7 @@ A judge from the same family as the agent shares its blind spots, so it forgives
 
 The mitigations are cheap. Use judges from different families. Grade pairs twice with the order swapped.
 Calibrate the judge against a human-labeled gold set before trusting it at scale, and send disagreement to a human.
+When a judge picks among a loop's own candidates, hide which configuration produced each one, and have it pick an existing output instead of writing a new one.
 
 [EvalGrill](https://github.com/hardness1020/EvalGrill) packages this workflow: it builds evals from real agent-application cases and calibrates the judge before trusting it.
 
@@ -195,6 +198,8 @@ Two builds, 100 tasks, 70 percent against 73 percent. That is not a result.
   Pairing removes task difficulty from the comparison, so it needs far fewer samples than two independent rates.
 - **Count your hypotheses.** Test six changes at 95 percent confidence and there is about a 26 percent chance one looks significant by luck.
   Tighten the threshold or rerun the winner before believing it.
+- **Three outcomes, not two.** A run passes, fails, or stays ungraded because the grader itself broke. A broken grader is not a zero.
+  Rate only the graded tasks and report the ungraded count beside the rate. If grader failures cluster on hard tasks, the rate covers an easier suite.
 
 If the improvement you expect is smaller than the band your suite can resolve, the next task is growing the suite, not tuning the agent.
 
@@ -223,7 +228,8 @@ Evaluation reuses the harness rather than adding to it:
 
 - The environment's tool interface is section 2's registry, with the handlers pointed at eval state instead of the real world.
 - The agent under test is the section 1 loop, unmodified. Nothing in the loop knows it is being evaluated.
-- The judge is section 21's checker: a separate agent, a fresh context, a fixed rubric it can satisfy but not rewrite.
+- Two judges, two rules. A checker the loop may read is section 21's: a separate agent, a fresh context, a fixed rubric it can satisfy but not rewrite.
+  A measurement judge is different. An automated improver never reads its rubric or its scores, or the test set turns into a training signal (section 24).
 - Section 20 supplies the inputs. Scrubbed production traces become new tasks, and its cost tracker gives cost per task.
 - The improvement loop is section 21's outer loop with evidence attached: measure, change one thing, measure again.
 
@@ -251,14 +257,19 @@ How each system builds the test bed a score comes from.
   Mitigation: check the end state, and keep a separate check for what the agent had to communicate.
 - **Contaminated tasks.** A public benchmark reaches the next training set, so a high score can be recall rather than capability.
   Mitigation: canary strings in task files, withheld answers, tasks collected after the cutoff, and parameterized templates.
+- **The agent under test downloads the rubric.** The benchmark publishes its grading criteria, and an agent with network access fetches them mid-run.
+  One published improvement method reports an agent doing this unprompted. Mitigation: block grading hosts at the network level for the run,
+  not through a tool setting, and report the restriction beside the score (section 3).
 - **Reading noise as a result.** A 3 point gap on 100 tasks, one run each, decides nothing.
   Mitigation: repeat runs, compare paired per task, ignore gaps inside the noise band, and tighten the threshold when testing many changes at once.
 - **Blaming the agent for a broken harness.** A starved runner, a buggy grader, or a stale task looks exactly like a quality drop.
   Mitigation: read failing trajectories before changing the agent.
+- **A grader crash scored as a failure.** A judge timeout or a missing score file counts as a zero, so a broken grader reads as a worse agent.
+  Mitigation: record the run as ungraded, leave it out of the rate, report the count, and rerun the grader. A run that delivered nothing is still a real zero.
 - **A judge that shares the agent's blind spots.** Same-family judges forgive the errors the agent makes, prefer longer answers, and favor whichever candidate came first.
   Mitigation: judges from different families, order swapped and graded twice, calibrated against a human-labeled gold set.
 - **Reward hacking.** The agent finds a route to the score that skips the work: keyword stuffing, flattering the judge, refusing hard cases.
-  Mitigation: veto items in the rubric, process metrics beside outcome metrics, and periodic human spot checks.
+  Mitigation: veto items in the rubric, process metrics beside outcome metrics, periodic human spot checks, and a measuring rubric kept out of anything the improver reads.
 - **Calibration read as accuracy.** A calibrated gate can still return the wrong verdict on an individual case.
   A gate that routes every case in a sample correctly can still be poorly calibrated. Neither metric replaces the other.
   Mitigation: score verdicts and probabilities separately. Count false allows and false denies separately too.
@@ -266,6 +277,7 @@ How each system builds the test bed a score comes from.
   Mitigation: grow the task set before iterating further.
 - **State leaking between runs.** No reset, or a shallow one, so one task's writes decide the next task's score.
   Mitigation: a deep copy per episode, and one isolated environment per run (section 15).
+  A loop that learns across tasks reads only entries from earlier tasks, with one store per arm.
 
 ---
 
@@ -276,10 +288,14 @@ How each system builds the test bed a score comes from.
 - [`evaluation.py`](src/evaluation.py): the environment with `reset` and a logged tool interface, a simulated user that releases one fact per turn, the episode protocol,
   grading (state checks, what was said, veto), Pass@k and Pass^k, the binomial noise band, and a paired comparison of two builds.
   It also adds `brier`, `ece`, and `sweep` to score section 22's probabilistic edge.
+  A check that returns `None` or raises `GraderError` leaves the run ungraded. Any other error is a failed check.
+  `run_suite` rates graded tasks only and returns the ungraded count, and `paired` skips tasks ungraded on either side.
 - [`test.py`](src/test.py): offline checks for reset restoring state, a protocol run where the agent has to ask for the order number,
   a safety veto failing a run whose outcome check passed, Pass@k against Pass^k on a flaky build,
   and a regressed build scoring lower with the paired comparison identifying the failures.
   They also check two logs with identical routes but different Brier and ECE scores. A threshold sweep checks that the last coverage increase costs a false allow.
+  They also check that a grader error neither lowers the rate nor drops out of the count, that a veto still fails a run with an ungraded check,
+  and that the paired comparison leaves out a task ungraded on either side.
 - [`demo.py`](src/demo.py): one graded episode. The model plays the support agent, its tool calls land in the environment,
   and the harness scores the state it left behind.
 
@@ -318,3 +334,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): checklist rubrics that name required facts, required reasoning steps, and the pitfalls that must be penalized.
 - [Claude Code](https://code.claude.com/docs): the reviewer and judge stages in the workflow contract, from tool schemas and documented behavior, not the source backup.
   Evaluation suites are not present in the source, so those cells are marked as reconstruction.
+- [harness²](https://github.com/google-research/harness2) at `1cfe254`: a judge failure kept apart from a real zero (`harness2/core/judge.py`, `harness2/core/report.py`),
+  the rubric download warning (`docs/EXPERIMENTS.md`), the read boundary (`harness2/core/context.py`), blind selection (`harness2/core/selection.py`),
+  and earlier entries only, one library per arm (`harness2/core/library.py`, `harness2/core/schedule.py`).

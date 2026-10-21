@@ -74,10 +74,10 @@ Each system is a worked example for the sections below.
 
 | System | Why people use it | Read it for | Sections | Version studied |
 | --- | --- | --- | --- | --- |
-| **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 23 (all)        | v2.1.88         |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
+| **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 24 (all)        | v2.1.88         |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21, 22, 24 | v2026.7.1 |
 | **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20 to 23 | v2.4.5 |
-| **deepseek-harness** | Plugin-first harness: even the loop is a replaceable plugin. | Plugin seams, durable session log, ACP | 1 to 8, 10 to 14, 16 to 21 | dsh-v0.1.0-rc.7 |
+| **deepseek-harness** | Plugin-first harness: even the loop is a replaceable plugin. | Plugin seams, durable session log, ACP | 1 to 8, 10 to 14, 16 to 21, 24 | dsh-v0.1.0-rc.7 |
 | *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw and aider.
@@ -128,12 +128,13 @@ Eight layers, from the basic loop to a harness that runs itself. Each row links 
 |    | **Layer 7 · Composition**                             |                                                    |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/)             | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
 | 22 | [Graph engineering](sections/22-graph-engineering/) | When does control flow move from the model to code? | Nodes, coded edges, cycles, agent nodes, typed decision edges |
+| 24 | [Harness adaptation](sections/24-harness-adaptation/) | How does an agent's configuration improve without a grader? | Edit surface, probes, compose or keep, library |
 
 ---
 
 ## Repository Structure
 
-All 24 section writeups are present, from `00-harness-thesis/` through `23-evaluation/`.
+All 25 section writeups are present, from `00-harness-thesis/` through `24-harness-adaptation/`.
 
 ```text
 learn-agent-architecture/
@@ -142,13 +143,13 @@ learn-agent-architecture/
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
 │   ├── ...
-│   └── 23-evaluation/
+│   └── 24-harness-adaptation/
 └── references/                # primary sources and prior art
 ```
 
 Each section folder is `NN-name/` and contains a `README.md`.
 
-Sections 1 to 23 also carry a runnable `src/`. The code accumulates section by section.
+Sections 1 to 24 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 Deep dives that outgrow one section live in their own repos.
@@ -159,7 +160,7 @@ Deep dives that outgrow one section live in their own repos.
 
 ## Running the Demos
 
-Sections 1 to 23 ship runnable demos. Set up once from the repo root:
+Sections 1 to 24 ship runnable demos. Set up once from the repo root:
 
 ```bash
 uv venv
@@ -202,6 +203,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): Open-source agent harness (MIT) used as the second system under study.
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): Minimal SWE agent (MIT) used as the third system under study.
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): Plugin-based agent harness (MIT) used as the fourth system under study.
+- [harness²](https://github.com/google-research/harness2): edits a frozen agent's configuration from probe runs, with no grader in the loop (Apache-2.0).
+  Section 24 uses it as a mechanism source, pinned at commit 1cfe254.
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
 - [EvalGrill](https://github.com/hardness1020/EvalGrill): companion tool (Apache-2.0) that applies section 23, building eval sets from real agent-application cases.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
