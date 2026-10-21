@@ -94,11 +94,13 @@ prompt 里会交代它：照角色回话、只讲这一步需要讲的、脚本�
 
 ```python
 def grade(task, run):                                  # src/evaluation.py
-    checks = {name: bool(fn(run["state"])) for name, fn in task["checks"]}       # the outcome
+    checks = {name: _check(fn, run["state"]) for name, fn in task["checks"]}     # the outcome, None if the grader broke
     said = " ".join(reply for _, reply in run["transcript"]).lower()
     told = {s: s.lower() in said for s in task.get("must_say", [])}              # what was communicated
     unsafe = [name for name, fn in task.get("veto", []) if fn(run)]              # zero tolerance
-    return {"passed": all(checks.values()) and all(told.values()) and not unsafe, ...}
+    graded = bool(unsafe) or None not in checks.values()                         # a veto fails it anyway
+    passed = (not unsafe and all(checks.values()) and all(told.values())) if graded else None
+    return {"graded": graded, "passed": passed, ...}
 ```
 
 - **看终态，不看路径：** 检查读的是最后的 state，只要走到那个状态，中间怎么走都算过。标准解只是其中一种解法，不是规定要走的那一条。
@@ -136,6 +138,7 @@ def grade(task, run):                                  # src/evaluation.py
 
 解法都不难：评判者换成不同家族的 model；配对比较时把顺序对调，再评一次；
 大规模用之前，先拿人工标好的 gold set 校准；两边判不一样的，就送人工看。
+如果评判者要在 loop 自己产出的几个 candidate 里挑一个，就别让它知道每个 candidate 出自哪一份 configuration，而且只能从现成的输出里挑，不能自己另写一份。
 
 [EvalGrill](https://github.com/hardness1020/EvalGrill) 把这套流程包成工具：把 agent 应用的真实案例做成 eval，先把 judge 校准好再信它。
 
@@ -192,6 +195,8 @@ model 换了版本，或流量配比变了，就把扫描重跑一次。这两�
   这样就把题目难易的影响扣掉了，需要的题数也比直接比较两个成功率来得少。
 - **算一下你同时验了几个假设：** 六个改动都用 95% 置信水平，其中至少一个纯靠运气看起来显著的概率大约是 26%。
   要么把门槛收紧，要么把跑赢的那个独立复跑一次，再决定信不信。
+- **结果不只过跟不过：** 一次执行可能通过、可能失败，也可能 grader 自己坏了，判不出结果，这种叫未判定（ungraded）。grader 坏了，不能算 agent 零分。
+  成功率只拿判得出结果的任务来算，未判定的有几题，写在成功率旁边。如果 grader 坏掉的大多是难题，剩下拿来算成功率的就是一套偏简单的题目。
 
 如果你预期的提升，比这套评估分辨得出来的差距还小，那接下来该做的是把任务集扩大，不是继续调 agent。
 
@@ -220,7 +225,9 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
 
 - 环境的 tool 接口就是第 2 章的 registry，只是 handler 指向评估用的 state，不是真实世界。
 - 受测的 agent 就是第 1 章的 loop，一行都没改。loop 里没有任何东西知道自己正在被评估。
-- 评判者就是第 21 章的 checker：另一个 agent、全新的 context、一份它只能满足、不能改写的 rubric。
+- 评判者有两种，各有各的规则。loop 可以读到判定结果的，是第 21 章的 checker：另一个 agent、全新的 context、一份它只能满足、不能改写的 rubric。
+  负责产出报告分数的评判者（measurement judge）就不一样了：improver（自动修改 agent configuration 的独立 session）永远不能读它的 rubric 和分数，
+  否则测试集就成了 improver 的训练信号（第 24 章）。
 - 第 20 章负责供料：正式环境的 trace 脱敏之后变成新任务，它的 cost tracker 给出每个任务花多少钱。
 - 改进 loop 就是第 21 章的外层 loop，只是这次带着证据：量一次、只改一件事、再量一次。
 
@@ -248,14 +255,19 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
   缓解：检查终态，另外再检查该讲的话有没有讲。
 - **任务被污染（Contaminated tasks）：** 公开 benchmark 会进到下一轮训练数据，高分可能只是背过。
   缓解：任务文件里放 canary 字符串、答案不公开、收集 cutoff 之后才出现的任务，以及用参数化模板生新题。
+- **受测的 agent 自己去抓 rubric（The agent downloads the rubric）：** benchmark 把评分标准公开了，agent 只要能联网，跑到一半就可能把它抓下来。
+  有一套已发表的改进方法就报告过：agent 没人要求，自己就这么做了。
+  缓解：这次执行期间，在网络层挡掉放评分标准的 host，不要靠 tool 的设置来挡；分数旁边也要注明有这项限制（第 3 章）。
 - **把噪音当结果（Reading noise as a result）：** 100 个任务各跑一次，差 3 个百分点，什么都决定不了。
   缓解：多跑几次、逐题配对比较、差距落在噪音带里就当它不存在，同时验很多改动时把门槛收紧。
 - **评估坏了却怪 agent（Blaming the agent）：** 机器资源不够、grader 有 bug、任务过期，看起来都跟 agent 变差一模一样。
   缓解：改 agent 之前，先读失败的 trajectory。
+- **grader 挂了，却算成 agent 失败（A grader crash scored as a failure）：** judge 超时、分数文件不见了，都被当成零分，结果 grader 坏掉看起来就像 agent 变差。
+  缓解：把这次记成未判定，不算进成功率，另外列出共有几题，再重跑 grader。但 agent 什么都没交出来的那一次，照样是真的零分。
 - **评判者跟 agent 有同样的盲点（Shared blind spots）：** 同家族的 judge 会放过 agent 常犯的错，偏好长回答，也偏好先读到的候选。
   缓解：换不同家族的 judge、顺序对调各评一次、先用人工标注的 gold set 校准。
 - **钻分数的漏洞（Reward hacking）：** agent 找到拿分的捷径，跳过真正的工作：塞关键字、讨好 judge、遇到难题就回避。
-  缓解：rubric 里放否决项、结果指标旁边摆过程指标，再定期人工抽检。
+  缓解：rubric 里放否决项、结果指标旁边摆过程指标，再定期人工抽检；用来量分数的 rubric 也要放在 improver 读不到的地方。
 - **把 calibration 当成准确率（Calibration read as accuracy）：** calibrate 得好的 gate，单看某一笔照样可能判错；
   在一批样本上每一笔都选对的 gate，calibration 也可能很差。这两个数字谁都替代不了谁。
   缓解：判定和概率分开评；false allow 和 false deny 也分开数。
@@ -263,6 +275,7 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
   缓解：先把任务集扩大，再继续迭代。
 - **上一次的 state 留到下一次（State leaking between runs）：** 没有 reset，或只 reset 了浅的一层，上一个任务写下的东西就决定了下一题的分数。
   缓解：每个 episode 深拷贝一份，每次执行各用一个独立的环境（第 15 章）。
+  loop 如果会跨任务学习，就只能读之前任务写下的记录，而且每一组实验条件各有一个自己的存储区。
 
 ---
 
@@ -273,10 +286,14 @@ Feature flag 负责分 AB 测试的组别，出事时也是断路开关。
 - [`evaluation.py`](src/evaluation.py)：带 `reset` 和调用记录的环境、一轮只释出一项信息的模拟用户、episode 的 protocol、
   打分（state 检查、该讲的话、否决项）、Pass@k 与 Pass^k、二项分布的噪音带，以及两份 build 的配对比较。
   另外加上 `brier`、`ece` 和 `sweep`，用来评第 22 章那条带概率的 edge。
+  检查函数返回 `None` 或抛出 `GraderError`，这次就记成未判定；其他错误一律算这项检查没过。
+  `run_suite` 只拿判得出结果的任务算成功率，并返回未判定的题数；`paired` 遇到任一边未判定的任务就跳过。
 - [`test.py`](src/test.py)：离线检查 reset 有没有把 state 还原、protocol 跑一次时 agent 必须先问订单编号、
   结果检查明明有过却被安全否决项挡下、同一个不稳定的 build 上 Pass@k 与 Pass^k 的差别，
   以及退步的 build 分数更低、配对比较能指出坏在哪几题。
   还会检查两份日志选路完全一样、Brier 和 ECE 却打出不同分数；扫描阈值时，最后多出来的那一点 coverage 得拿一次 false allow 来换。
+  grader 出错的情况也有测：成功率不会因此变低，未判定的题数也不会少算这一题；某项检查未判定时，否决项照样能判这次不过；
+  任一边未判定的任务，配对比较都会排除。
 - [`demo.py`](src/demo.py)：实际跑一次并打分。
   model 扮演客服 agent，它调用的 tool 都打在环境上，最后 harness 看它留下的 state 给分。
 
@@ -316,3 +333,6 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
   要有哪些推理步骤，以及哪些常见错误必须扣分。
 - [Claude Code](https://code.claude.com/docs)：workflow 约定里的 reviewer 与 judge 阶段。
   内容依据 tool schema 和文件记载的行为，不是 source backup。评估软件包不在源代码里，那几格都标成重建。
+- [harness²](https://github.com/google-research/harness2) 的 `1cfe254` 版：judge 失败和真正的零分分开记（`harness2/core/judge.py`、`harness2/core/report.py`）、
+  agent 下载 rubric 的警告（`docs/EXPERIMENTS.md`）、improver 能读什么的界线（`harness2/core/context.py`）、挑 candidate 时不让 judge 知道出处（`harness2/core/selection.py`），
+  以及只读之前任务的记录、每一组实验条件各用一个 library（`harness2/core/library.py`、`harness2/core/schedule.py`）。
